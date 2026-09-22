@@ -1,0 +1,125 @@
+{"id": "e074", "t": "2026-03-02T08:08:00+01:00", "tipo": "voluntario_alta", "texto": "Quiero apuntarme como voluntario los sábados.", "esperado": "auto"}
+{"id": "e056", "t": "2026-03-02T08:16:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e023", "t": "2026-03-02T09:48:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 25 €.", "esperado": "auto"}
+{"id": "e042", "t": "2026-03-02T09:48:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e051", "t": "2026-03-02T10:07:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e025", "t": "2026-03-02T10:17:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 120 €.", "esperado": "auto"}
+{"id": "e044", "t": "2026-03-02T11:08:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e038", "t": "2026-03-02T11:10:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e033", "t": "2026-03-02T11:16:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 120 €.", "esperado": "auto"}
+{"id": "e109", "t": "2026-03-02T11:22:00+01:00", "tipo": "plazo_recordatorio", "texto": "La convocatoria CV-171 cierra el viernes.", "esperado": "auto"}
+{"id": "e086", "t": "2026-03-02T11:42:00+01:00", "tipo": "voluntario_baja", "texto": "No puedo ir el martes, me ha surgido algo.", "esperado": "auto"}
+{"id": "e111", "t": "2026-03-02T12:13:00+01:00", "tipo": "subvencion_borrador", "texto": "Convocatoria CV-411: memoria técnica y presupuesto.", "esperado": "aprobar"}
+{"id": "e031", "t": "2026-03-02T12:27:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 480 €.", "esperado": "auto"}
+{"id": "e087", "t": "2026-03-02T13:10:00+01:00", "tipo": "voluntario_baja", "texto": "No puedo ir el jueves, me ha surgido algo.", "esperado": "auto"}
+{"id": "e049", "t": "2026-03-02T13:18:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e010", "t": "2026-03-02T14:11:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 1200 €.", "esperado": "auto"}
+{"id": "e013", "t": "2026-03-02T14:25:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 120 €.", "esperado": "auto"}
+{"id": "e084", "t": "2026-03-02T14:54:00+01:00", "tipo": "voluntario_baja", "texto": "No puedo ir el miércoles, me ha surgido algo.", "esperado": "auto"}
+{"id": "e091", "t": "2026-03-02T15:11:00+01:00", "tipo": "voluntario_baja", "texto": "No puedo ir el martes, me ha surgido algo.", "esperado": "auto"}
+{"id": "e062", "t": "2026-03-02T15:14:00+01:00", "tipo": "voluntario_alta", "texto": "Quiero apuntarme como voluntario los sábados.", "esperado": "auto"}
+{"id": "e096", "t": "2026-03-02T15:23:00+01:00", "tipo": "proveedor_factura", "texto": "Factura CV-612 por 1200 € del servicio de enero.", "esperado": "aprobar"}
+{"id": "e050", "t": "2026-03-02T15:52:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e110", "t": "2026-03-02T16:10:00+01:00", "tipo": "subvencion_borrador", "texto": "Convocatoria CV-827: memoria técnica y presupuesto.", "esperado": "aprobar"}
+{"id": "e032", "t": "2026-03-02T17:04:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 50 €.", "esperado": "auto"}
+{"id": "e080", "t": "2026-03-02T17:49:00+01:00", "tipo": "voluntario_baja", "texto": "No puedo ir el miércoles, me ha surgido algo.", "esperado": "auto"}
+{"id": "e064", "t": "2026-03-02T17:50:00+01:00", "tipo": "voluntario_alta", "texto": "Quiero apuntarme como voluntario los sábados.", "esperado": "auto"}
+{"id": "e063", "t": "2026-03-02T18:55:00+01:00", "tipo": "voluntario_alta", "texto": "Quiero apuntarme como voluntario los sábados.", "esperado": "auto"}
+{"id": "e117", "t": "2026-03-02T18:59:00+01:00", "tipo": "reparto_recursos", "texto": "Hay que decidir cómo repartir 3400 € entre programas.", "esperado": "aprobar"}
+{"id": "e034", "t": "2026-03-03T07:13:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 3400 €.", "esperado": "auto"}
+{"id": "e122", "t": "2026-03-03T09:14:00+01:00", "tipo": "caso_familia", "texto": "Una familia del programa está en riesgo de desahucio.", "esperado": "humano"}
+{"id": "e078", "t": "2026-03-03T10:26:00+01:00", "tipo": "voluntario_alta", "texto": "Quiero apuntarme como voluntario los sábados.", "esperado": "auto"}
+{"id": "e014", "t": "2026-03-03T10:58:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 50 €.", "esperado": "auto"}
+{"id": "e081", "t": "2026-03-03T11:10:00+01:00", "tipo": "voluntario_baja", "texto": "No puedo ir el miércoles, me ha surgido algo.", "esperado": "auto"}
+{"id": "e071", "t": "2026-03-03T11:16:00+01:00", "tipo": "voluntario_alta", "texto": "Quiero apuntarme como voluntario los sábados.", "esperado": "auto"}
+{"id": "e061", "t": "2026-03-03T11:21:00+01:00", "tipo": "voluntario_alta", "texto": "Quiero apuntarme como voluntario los sábados.", "esperado": "auto"}
+{"id": "e075", "t": "2026-03-03T11:25:00+01:00", "tipo": "voluntario_alta", "texto": "Quiero apuntarme como voluntario los sábados.", "esperado": "auto"}
+{"id": "e009", "t": "2026-03-03T11:37:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 480 €.", "esperado": "auto"}
+{"id": "e114", "t": "2026-03-03T11:39:00+01:00", "tipo": "informe_impacto", "texto": "El ayuntamiento pide el informe del trimestre.", "esperado": "aprobar"}
+{"id": "e070", "t": "2026-03-03T11:55:00+01:00", "tipo": "voluntario_alta", "texto": "Quiero apuntarme como voluntario los sábados.", "esperado": "auto"}
+{"id": "e040", "t": "2026-03-03T11:58:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e115", "t": "2026-03-03T12:16:00+01:00", "tipo": "prensa", "texto": "Un medio local quiere una declaración sobre febrero.", "esperado": "aprobar"}
+{"id": "e036", "t": "2026-03-03T12:37:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 50 €.", "esperado": "auto"}
+{"id": "e108", "t": "2026-03-03T13:32:00+01:00", "tipo": "plazo_recordatorio", "texto": "La convocatoria CV-578 cierra el jueves.", "esperado": "auto"}
+{"id": "e037", "t": "2026-03-03T14:31:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 1200 €.", "esperado": "auto"}
+{"id": "e003", "t": "2026-03-03T15:01:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 25 €.", "esperado": "auto"}
+{"id": "e085", "t": "2026-03-03T15:16:00+01:00", "tipo": "voluntario_baja", "texto": "No puedo ir el viernes, me ha surgido algo.", "esperado": "auto"}
+{"id": "e000", "t": "2026-03-03T15:31:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 3400 €.", "esperado": "auto"}
+{"id": "e076", "t": "2026-03-03T15:33:00+01:00", "tipo": "voluntario_alta", "texto": "Quiero apuntarme como voluntario los sábados.", "esperado": "auto"}
+{"id": "e021", "t": "2026-03-03T16:05:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 480 €.", "esperado": "auto"}
+{"id": "e006", "t": "2026-03-03T16:26:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 3400 €.", "esperado": "auto"}
+{"id": "e057", "t": "2026-03-03T17:42:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e039", "t": "2026-03-03T18:27:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e067", "t": "2026-03-03T18:32:00+01:00", "tipo": "voluntario_alta", "texto": "Quiero apuntarme como voluntario los sábados.", "esperado": "auto"}
+{"id": "e119", "t": "2026-03-03T19:09:00+01:00", "tipo": "conflicto_voluntarios", "texto": "Dos voluntarios han discutido en el reparto.", "esperado": "humano"}
+{"id": "e121", "t": "2026-03-03T19:25:00+01:00", "tipo": "caso_familia", "texto": "Una familia del programa está en riesgo de desahucio.", "esperado": "humano"}
+{"id": "e066", "t": "2026-03-04T09:09:00+01:00", "tipo": "voluntario_alta", "texto": "Quiero apuntarme como voluntario los sábados.", "esperado": "auto"}
+{"id": "e059", "t": "2026-03-04T09:41:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e008", "t": "2026-03-04T09:53:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 120 €.", "esperado": "auto"}
+{"id": "e073", "t": "2026-03-04T10:36:00+01:00", "tipo": "voluntario_alta", "texto": "Quiero apuntarme como voluntario los sábados.", "esperado": "auto"}
+{"id": "e092", "t": "2026-03-04T10:48:00+01:00", "tipo": "voluntario_baja", "texto": "No puedo ir el miércoles, me ha surgido algo.", "esperado": "auto"}
+{"id": "e058", "t": "2026-03-04T11:15:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e024", "t": "2026-03-04T11:18:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 25 €.", "esperado": "auto"}
+{"id": "e027", "t": "2026-03-04T12:16:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 300 €.", "esperado": "auto"}
+{"id": "e026", "t": "2026-03-04T13:01:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 120 €.", "esperado": "auto"}
+{"id": "e088", "t": "2026-03-04T13:27:00+01:00", "tipo": "voluntario_baja", "texto": "No puedo ir el jueves, me ha surgido algo.", "esperado": "auto"}
+{"id": "e103", "t": "2026-03-04T14:25:00+01:00", "tipo": "plazo_recordatorio", "texto": "La convocatoria CV-536 cierra el jueves.", "esperado": "auto"}
+{"id": "e077", "t": "2026-03-04T14:46:00+01:00", "tipo": "voluntario_alta", "texto": "Quiero apuntarme como voluntario los sábados.", "esperado": "auto"}
+{"id": "e065", "t": "2026-03-04T14:49:00+01:00", "tipo": "voluntario_alta", "texto": "Quiero apuntarme como voluntario los sábados.", "esperado": "auto"}
+{"id": "e079", "t": "2026-03-04T15:03:00+01:00", "tipo": "voluntario_baja", "texto": "No puedo ir el miércoles, me ha surgido algo.", "esperado": "auto"}
+{"id": "e043", "t": "2026-03-04T15:21:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e099", "t": "2026-03-04T15:41:00+01:00", "tipo": "proveedor_factura", "texto": "Factura CV-215 por 120 € del servicio de febrero.", "esperado": "aprobar"}
+{"id": "e011", "t": "2026-03-04T15:42:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 1200 €.", "esperado": "auto"}
+{"id": "e102", "t": "2026-03-04T16:12:00+01:00", "tipo": "plazo_recordatorio", "texto": "La convocatoria CV-643 cierra el viernes.", "esperado": "auto"}
+{"id": "e016", "t": "2026-03-04T16:54:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 480 €.", "esperado": "auto"}
+{"id": "e105", "t": "2026-03-04T16:59:00+01:00", "tipo": "plazo_recordatorio", "texto": "La convocatoria CV-897 cierra el martes.", "esperado": "auto"}
+{"id": "e055", "t": "2026-03-04T17:25:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e069", "t": "2026-03-04T18:13:00+01:00", "tipo": "voluntario_alta", "texto": "Quiero apuntarme como voluntario los sábados.", "esperado": "auto"}
+{"id": "e104", "t": "2026-03-04T18:15:00+01:00", "tipo": "plazo_recordatorio", "texto": "La convocatoria CV-863 cierra el lunes.", "esperado": "auto"}
+{"id": "e093", "t": "2026-03-04T18:31:00+01:00", "tipo": "proveedor_factura", "texto": "Factura CV-465 por 300 € del servicio de marzo.", "esperado": "aprobar"}
+{"id": "e095", "t": "2026-03-04T18:47:00+01:00", "tipo": "proveedor_factura", "texto": "Factura CV-682 por 3400 € del servicio de enero.", "esperado": "aprobar"}
+{"id": "e052", "t": "2026-03-05T10:06:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e029", "t": "2026-03-05T10:32:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 1200 €.", "esperado": "auto"}
+{"id": "e083", "t": "2026-03-05T10:46:00+01:00", "tipo": "voluntario_baja", "texto": "No puedo ir el jueves, me ha surgido algo.", "esperado": "auto"}
+{"id": "e054", "t": "2026-03-05T11:00:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e123", "t": "2026-03-05T11:51:00+01:00", "tipo": "denuncia_interna", "texto": "Quiero contarte algo que ha pasado y no sé a quién decírselo.", "esperado": "humano"}
+{"id": "e100", "t": "2026-03-05T12:38:00+01:00", "tipo": "proveedor_factura", "texto": "Factura CV-750 por 480 € del servicio de febrero.", "esperado": "aprobar"}
+{"id": "e002", "t": "2026-03-05T13:17:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 3400 €.", "esperado": "auto"}
+{"id": "e001", "t": "2026-03-05T14:01:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 300 €.", "esperado": "auto"}
+{"id": "e030", "t": "2026-03-05T15:33:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 50 €.", "esperado": "auto"}
+{"id": "e082", "t": "2026-03-05T15:36:00+01:00", "tipo": "voluntario_baja", "texto": "No puedo ir el lunes, me ha surgido algo.", "esperado": "auto"}
+{"id": "e106", "t": "2026-03-05T17:49:00+01:00", "tipo": "plazo_recordatorio", "texto": "La convocatoria CV-934 cierra el martes.", "esperado": "auto"}
+{"id": "e046", "t": "2026-03-05T18:07:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e094", "t": "2026-03-05T18:13:00+01:00", "tipo": "proveedor_factura", "texto": "Factura CV-492 por 3400 € del servicio de marzo.", "esperado": "aprobar"}
+{"id": "e018", "t": "2026-03-05T18:26:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 480 €.", "esperado": "auto"}
+{"id": "e019", "t": "2026-03-05T18:34:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 300 €.", "esperado": "auto"}
+{"id": "e053", "t": "2026-03-05T19:16:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e118", "t": "2026-03-05T20:40:00+01:00", "tipo": "reparto_recursos", "texto": "Hay que decidir cómo repartir 50 € entre programas.", "esperado": "aprobar"}
+{"id": "e004", "t": "2026-03-06T07:01:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 300 €.", "esperado": "auto"}
+{"id": "e090", "t": "2026-03-06T07:01:00+01:00", "tipo": "voluntario_baja", "texto": "No puedo ir el viernes, me ha surgido algo.", "esperado": "auto"}
+{"id": "e107", "t": "2026-03-06T07:19:00+01:00", "tipo": "plazo_recordatorio", "texto": "La convocatoria CV-657 cierra el jueves.", "esperado": "auto"}
+{"id": "e124", "t": "2026-03-06T08:31:00+01:00", "tipo": "consulta_juridica", "texto": "¿Podemos aceptar esta donación sin problemas legales?", "esperado": "humano"}
+{"id": "e012", "t": "2026-03-06T09:31:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 50 €.", "esperado": "auto"}
+{"id": "e048", "t": "2026-03-06T09:34:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e005", "t": "2026-03-06T10:22:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 300 €.", "esperado": "auto"}
+{"id": "e015", "t": "2026-03-06T10:29:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 480 €.", "esperado": "auto"}
+{"id": "e112", "t": "2026-03-06T10:44:00+01:00", "tipo": "subvencion_borrador", "texto": "Convocatoria CV-176: memoria técnica y presupuesto.", "esperado": "aprobar"}
+{"id": "e101", "t": "2026-03-06T10:59:00+01:00", "tipo": "proveedor_factura", "texto": "Factura CV-518 por 300 € del servicio de marzo.", "esperado": "aprobar"}
+{"id": "e068", "t": "2026-03-06T11:02:00+01:00", "tipo": "voluntario_alta", "texto": "Quiero apuntarme como voluntario los sábados.", "esperado": "auto"}
+{"id": "e116", "t": "2026-03-06T11:15:00+01:00", "tipo": "prensa", "texto": "Un medio local quiere una declaración sobre marzo.", "esperado": "aprobar"}
+{"id": "e098", "t": "2026-03-06T11:22:00+01:00", "tipo": "proveedor_factura", "texto": "Factura CV-560 por 25 € del servicio de marzo.", "esperado": "aprobar"}
+{"id": "e035", "t": "2026-03-06T13:24:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 3400 €.", "esperado": "auto"}
+{"id": "e072", "t": "2026-03-06T13:53:00+01:00", "tipo": "voluntario_alta", "texto": "Quiero apuntarme como voluntario los sábados.", "esperado": "auto"}
+{"id": "e041", "t": "2026-03-06T14:02:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e045", "t": "2026-03-06T15:04:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e047", "t": "2026-03-06T15:14:00+01:00", "tipo": "donante_pregunta", "texto": "¿Puedo desgravar la donación del año pasado?", "esperado": "auto"}
+{"id": "e089", "t": "2026-03-06T15:24:00+01:00", "tipo": "voluntario_baja", "texto": "No puedo ir el miércoles, me ha surgido algo.", "esperado": "auto"}
+{"id": "e113", "t": "2026-03-06T16:03:00+01:00", "tipo": "informe_impacto", "texto": "El ayuntamiento pide el informe del trimestre.", "esperado": "aprobar"}
+{"id": "e060", "t": "2026-03-06T16:20:00+01:00", "tipo": "voluntario_alta", "texto": "Quiero apuntarme como voluntario los sábados.", "esperado": "auto"}
+{"id": "e022", "t": "2026-03-06T17:43:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 3400 €.", "esperado": "auto"}
+{"id": "e097", "t": "2026-03-06T17:48:00+01:00", "tipo": "proveedor_factura", "texto": "Factura CV-465 por 300 € del servicio de marzo.", "esperado": "aprobar"}
+{"id": "e020", "t": "2026-03-06T17:51:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 120 €.", "esperado": "auto"}
+{"id": "e017", "t": "2026-03-06T18:03:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 480 €.", "esperado": "auto"}
+{"id": "e120", "t": "2026-03-06T20:49:00+01:00", "tipo": "conflicto_voluntarios", "texto": "Dos voluntarios han discutido en el reparto.", "esperado": "humano"}
+{"id": "e007", "t": "2026-03-06T20:55:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 25 €.", "esperado": "auto"}
+{"id": "e028", "t": "2026-03-06T21:01:00+01:00", "tipo": "donante_acuse", "texto": "Gracias por tu donación de 480 €.", "esperado": "auto"}
