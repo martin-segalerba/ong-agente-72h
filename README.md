@@ -5,8 +5,7 @@ Solución al reto ["¿Hasta dónde puedes llevar una ONG de una sola persona?"](
 **Nota de envío**: esta ventana personal de 72 horas venció el 19 SEP 2026 sin
 que se llegara a enviar el repo. El sistema estaba terminado y validado
 antes de esa fecha; lo que faltó fue el paso de empaquetarlo y entregarlo a
-tiempo. Queda publicado igual porque el organizador pidió ver el trabajo
-aunque no llegara a la ventana, y porque es un resultado real, no un boceto.
+tiempo, fue una decisión por cambio de enfoque personal en otro proyecto prioritario.
 
 ## Qué funciona de verdad
 
