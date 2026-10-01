@@ -1,110 +1,99 @@
-# ONG · agente de clasificación y acción — AI For Action, reto 01
+# Auditor
 
-Solución al reto ["¿Hasta dónde puedes llevar una ONG de una sola persona?"](https://aiforaction.tech) de AI For Action.
+La bandeja de entrada de una ONG de una o dos personas, clasificada en tres niveles —**auto** (lo resuelve el sistema), **aprobar** (lo prepara y una persona dice sí), **humano** (tiene que entrar una persona)— con un sistema que se corrige solo cada semana sin dejar de pedir permiso.
 
-**Nota de envío**: esta ventana personal de 72 horas venció el 19 SEP 2026 sin
-que se llegara a enviar el repo. El sistema estaba terminado y validado
-antes de esa fecha; lo que faltó fue el paso de empaquetarlo y entregarlo a
-tiempo, fue una decisión por cambio de enfoque personal en otro proyecto prioritario.
-
-## Qué funciona de verdad
-
-Un pipeline determinista (sin LLM en el bucle de decisión) que recibe un
-evento de la bandeja de una ONG y devuelve `clasificacion`
-(`auto`/`aprobar`/`humano`) + `accion` concreta. Código en
-[`ong/ngo_solver/`](ong/ngo_solver/), entrypoint en
-[`ong/solucion.py`](ong/solucion.py).
-
-**Puntuación sobre la semana pública, con el evaluador LLM real (no solo
-reglas)**:
-
-```json
-{
-  "puntuacion": 88.0,
-  "sin_persona_bruto_pct": 88.0,
-  "penalizacion_pct": 0.0,
-  "intervencion_humana_pct": 12.0,
-  "reparto": { "auto": 101, "aprobar": 18, "humano": 6 },
-  "eventos": 125,
-  "sin_responder": 0,
-  "errores": 0,
-  "detalle_errores": [],
-  "evaluador_llm": "usado"
-}
+```
+evento ─▶ reglas deciden ─▶ Jev audita ─▶ persona ve solo la señal fuerte
+   ▲                                              │
+   │     cada lunes: Opus propone cambios ◀───────┘ correcciones y confirmaciones
+   │     se re-ejecuta todo el historial
+   │     Jev audita lo que cambió, Opus revisa
+   └──── una persona aprueba viendo diff + métricas crudas (con rollback)
 ```
 
-Es el techo teórico documentado en `RESULTADOS.md` del harness (101 `auto`
-+ 18 `aprobar` a medio punto + 6 `humano`), con 0 errores confirmados por el
-evaluador LLM de la rúbrica pública, no solo por las comprobaciones de
-reglas de `score.py --no-llm`.
+## Cómo funciona
 
-Para reproducirlo:
+1. **Las reglas deciden.** Un motor determinista ([`lib/engine.ts`](lib/engine.ts)) evalúa reglas declarativas en orden. Las acciones solo pueden citar datos que extraen funciones fijas (importe, último importe, referencia, fecha, día, mes): una regla no puede inventar un dato. Las salvaguardas suben el nivel cuando el texto trae señales de riesgo (menores, conflictos, condiciones en una donación). Hay **límites duros en código** que el loop no puede tocar: casos de familias, denuncias, consultas legales y conflictos siempre van a una persona; facturas, repartos de dinero, subvenciones, informes y prensa nunca se resuelven en automático.
+2. **Jev audita.** Cada decisión pasa por [Jev](https://docs.typesafe.ai) como una pregunta de opción única (`correcta` / `demasiado_cautelosa` / `demasiado_atrevida` / `accion_no_fundamentada`), con criterios calibrados contra la rúbrica pública del reto. El veredicto solo cuenta si su confianza supera el umbral de esa clase: por debajo es ruido.
+3. **Una persona ve lo que importa.** Todo lo que es `humano` y `aprobar`, lo `auto` que Jev marca con señal fuerte y una auditoría aleatoria del 20 % de lo `auto`, para que la muestra de correcciones no dependa solo de lo que el sistema ya sospecha.
+4. **Opus propone cada lunes** ([`lib/loop.ts`](lib/loop.ts)) con todo el historial: correcciones, decisiones confirmadas, señales débiles y propuestas rechazadas antes. La propuesta se valida contra el motor, se re-ejecutan **todos** los casos con la versión actual y la propuesta, Jev audita solo lo que cambia (los veredictos se cachean por decisión) y Opus revisa la comparación.
+5. **Una persona decide con números.** La pestaña Mejoras muestra el diff de las reglas (SOP y JSON), las métricas crudas de ambas versiones y ejemplos de eventos que cambian. Dos condiciones bloquean: romper una decisión que una persona confirmó o aumentar los veredictos `demasiado_atrevida`. Toda versión se puede revertir.
+6. **Los umbrales se recalibran.** Cada semana se busca el umbral que mejor separa errores reales de falsas alarmas entre los eventos revisados de cada clase (en empate gana el más alto, que interrumpe menos). Setup recomienda la media móvil de las últimas cuatro semanas.
+
+## Qué es real y qué es simulado
+
+| | |
+| --- | --- |
+| **Real** | Cada propuesta, revisión y veredicto del historial salió de llamadas reales a `claude-opus-5-5` y `jev-latest`. Los rechazos (`P-004`, `P-005`) los dispararon las métricas: ambas propuestas cambiaban decisiones ya confirmadas sobre repartos de dinero a una familia sin ingresos. |
+| **Simulado** | Los eventos (generador con semilla en [`scripts/semanas.ts`](scripts/semanas.ts), con trampas: donaciones con condiciones, quejas con forma de pregunta, menores, un importe viejo y uno nuevo en el mismo texto, un plazo que cambia a mitad de semana). La persona que revisa entre S33 y S39 también es simulada: corrige según la etiqueta del generador y aprueba propuestas solo con las métricas. |
+| **Para vos** | La semana S40 está en curso: sus acciones a aprobar, las reversiones y la propuesta `P-007` esperan a una persona de verdad. |
+
+La **precisión real** se mide contra la etiqueta del generador, que ni las reglas, ni Jev, ni Opus ven. En producción no existiría; ahí el sistema se guía solo por las correcciones humanas y Jev.
+
+## Resultados
+
+| semana | reglas | eventos | precisión real | resuelto sin persona | correcciones |
+| --- | --- | --- | --- | --- | --- |
+| S33 | v1 | 36 | 63,9 % | 43,1 % | 11 |
+| S34 | v2 | 36 | 72,2 % | 62,5 % | 7 |
+| S35 | v3 | 36 | 97,2 % | 75,0 % | 0 |
+| S36 | v4 | 36 | 88,9 % | 75,0 % | 2 |
+| S37 | v4 | 38 | 92,1 % | 57,9 % | 2 |
+| S38 | v4 | 36 | 88,9 % | 77,8 % | 2 |
+| S39 | v5 | 36 | 97,2 % | 68,1 % | 1 |
+| S40 (en curso) | v5 | 21 | 95,2 % | 73,8 % | — |
+
+Las caídas de S36 y S38 coinciden con cambios en la mezcla de eventos (cierre de mes con muchas facturas, rotación de voluntariado): la distribución no es estacionaria a propósito.
+
+| propuesta | cambio | estado |
+| --- | --- | --- |
+| P-001 | `voluntario_baja`: acusar recibo en auto de ausencias con día | aprobada |
+| P-002 | salvaguarda: menores de edad y maltrato entre personas siempre a humano | aprobada |
+| P-003 | `donante_acuse`: acuse sobrio en auto cuando el texto no trae importe | aprobada |
+| P-004 | donaciones con condiciones o reembolsos fuera de auto | rechazada · rompía 2 decisiones confirmadas |
+| P-005 | devoluciones y donaciones condicionadas a aprobar | rechazada · rompía 3 confirmadas y subía `demasiado_atrevida` |
+| P-006 | devoluciones, cobros duplicados y condiciones a aprobar, citando el último importe | aprobada |
+| P-007 | prensa en aprobar; bajas con supresión de datos en aprobar | pendiente |
+
+## Ejecutarlo
 
 ```bash
-cd ong
-python3 replay.py --cmd "python3 solucion.py" --salida respuestas.jsonl
-python3 score.py --respuestas respuestas.jsonl --no-llm   # sin API key
-python3 score.py --respuestas respuestas.jsonl            # con ANTHROPIC_API_KEY, evaluador real
+npm install
+npm run dev
 ```
 
-### Cómo llega a ese número
+La app funciona sin claves: el historial está en [`data/historial.json`](data/historial.json) y lo que hagas (aprobar, rechazar, revertir, cambiar umbrales o la pregunta de Jev) se guarda en tu navegador. "restablecer" lo borra.
 
-- **Clasificación por tipo de evento**, no por texto memorizado: cada uno
-  de los 14 tipos conocidos tiene un manejador con un nivel de cautela por
-  defecto (`ngo_solver/actions.py`).
-- **Extracción de datos reales del texto** (importe, referencia, día/fecha)
-  con regex — nunca se inventa un dato; si falta el que hace falta para la
-  acción por defecto, el propio manejador escala un nivel
-  (`ngo_solver/extract.py`).
-- **Capa de seguridad independiente del tipo** (`ngo_solver/safety.py`):
-  palabras y patrones de vulnerabilidad, seguridad de menores, legal,
-  conflicto interpersonal, reversión de dinero y condiciones/contrapartidas
-  en donaciones. Solo puede subir el nivel de cautela, nunca bajarlo — la
-  asimetría del marcador (equivocarse por exceso de confianza cuesta hasta
-  12 puntos por evento; por exceso de cautela, cero) hace que esto sea
-  siempre la apuesta correcta.
-- **Validación de contrato** (`ngo_solver/models.py`): una respuesta
-  marcada `auto` que delega ("voy a preguntar...") o con una acción vacía o
-  demasiado vaga es inválida antes de llegar a `stdout`.
+Para regenerar las ocho semanas con el loop real (unos 20 minutos, centavos de Jev y algo menos de un dólar de Opus):
 
-## Qué es exploración, no producción
+```bash
+ANTHROPIC_API_KEY=... TYPESAFE_API_KEY=... npm run simulate
+```
 
-No se probó un clasificador basado en LLM puro para este envío (quedó
-como el "próximo experimento recomendado" al final de `ong/EXPERIMENTOS.md`,
-no como código en este repo). La decisión de usar solo reglas deterministas
-fue explícita, no por falta de tiempo para lo otro:
+### Vercel
 
-- **Auditable**: cada decisión trae su motivo exacto (ver el campo
-  `motivos` interno en `ngo_solver/models.py`), sin depender de que un
-  modelo "explique" post-hoc por qué hizo algo.
-- **Sin riesgo de inventar**: la iteración documentada en
-  `ong/EXPERIMENTOS.md` (experimentos 3-4) muestra en vivo el problema real
-  de meter un LLM en el bucle de decisión — el evaluador rechazó acciones
-  que afirmaban haber "reenviado un certificado fiscal" o "notificado a un
-  grupo de voluntarios" cuando el evento no traía esos datos. Un sistema de
-  reglas no tiene esa tentación: si el dato no está, no hay nada que
-  inventar.
-- **Determinista y gratis**: sin latencia de red ni coste por evento en el
-  camino de clasificación (el harness sí usa un LLM, pero solo como
-  auditor externo, no como parte del sistema).
+El despliegue funciona tal cual. El botón **Ejecutar el loop ahora** llama a `/api/loop`, que gasta créditos de Opus y Jev, así que viene desactivado. Para activarlo, en las variables de entorno del proyecto:
 
-## Qué fuentes se usaron
+| variable | |
+| --- | --- |
+| `ANTHROPIC_API_KEY` | clave de Anthropic |
+| `TYPESAFE_API_KEY` | clave de TypeSafe |
+| `LOOP_EN_VIVO` | `1` para habilitar el endpoint |
+| `LOOP_CLAVE` | opcional y recomendable: si está, el navegador la pide antes de ejecutar |
 
-- El propio harness público de AI For Action
-  ([`carlosgarcia-svg/ai-for-good-72h-harness`](https://github.com/carlosgarcia-svg/ai-for-good-72h-harness)):
-  escenario de muestra, rúbrica del evaluador, script de puntuación.
-- Ley 49/2002 de régimen fiscal de las entidades sin fines lucrativos y de
-  los incentivos fiscales al mecenazgo (España) — referenciada de forma
-  genérica en la respuesta a preguntas de donantes sobre desgravación
-  fiscal, sin inventar cifras ni certificados específicos por donante.
-- Ningún dataset externo de ONGs reales: todos los eventos de prueba
-  (públicos y los ~60 casos sintéticos usados para el hardening, descritos
-  en `ong/EXPERIMENTOS.md`) son sintéticos, generados para estresar el
-  sistema, no datos de ninguna organización real.
+## Estructura
 
-## Historial de iteración
+```
+app/                 interfaz (Home, Setup, Logs, Mejoras) y /api/loop
+components/          pestañas y tarjetas
+lib/engine.ts        motor de reglas, extractores y límites duros
+lib/jev.ts           auditoría con Jev y caché de veredictos
+lib/opus.ts          propuesta y revisión con Opus, salida validada con zod
+lib/loop.ts          una vuelta del loop
+lib/metricas.ts      métricas, calibración de umbrales
+scripts/             generador de semanas y simulación
+data/                historial generado
+ong/                 solución original al reto de AI For Action (Python, harness público)
+```
 
-El detalle completo —qué se probó, qué falló, por qué, y qué se cambió—
-está en [`ong/EXPERIMENTOS.md`](ong/EXPERIMENTOS.md): 6 experimentos, desde
-reproducir el baseline (52.0) hasta el hardening final contra casos
-sintéticos fuera de la semana pública.
+La carpeta [`ong/`](ong/) contiene la primera versión: un pipeline de reglas en Python contra el harness público del reto ONG de AI For Action (88,0 en la semana pública, validado con el evaluador LLM). El historial de esa iteración está en [`ong/EXPERIMENTOS.md`](ong/EXPERIMENTOS.md); Auditor es lo que vino después.
