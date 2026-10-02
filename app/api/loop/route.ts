@@ -20,6 +20,9 @@ const Entrada = z.object({
     nota: z.string().max(500),
     instrucciones: z.string().min(10).max(4000),
     criterios: z.array(z.object({ k: z.string().min(1).max(60), d: z.string().max(1500) })).min(2).max(8),
+    adicionales: z
+      .array(z.object({ k: z.string().min(1).max(60), instrucciones: z.string().min(5).max(1500), criterios: z.object({ true: z.string().max(1500), false: z.string().max(1500) }) }))
+      .max(4),
   }),
   revisiones: z
     .record(
@@ -34,7 +37,15 @@ const Entrada = z.object({
       }),
     )
     .refine((r) => Object.keys(r).length <= 200),
-  rechazadas: z.array(z.object({ titulo: z.string().max(300), motivo: z.string().max(1000) })).max(50),
+  rechazadas: z
+    .array(
+      z.object({
+        titulo: z.string().max(300),
+        motivo: z.string().max(1000),
+        rompe: z.array(z.object({ tipo: z.string().max(60), texto: z.string().max(600), confirmada: clase, propuesta: clase })).max(10).optional(),
+      }),
+    )
+    .max(50),
   propuestasPrevias: z.number().int().min(0).max(500),
 });
 

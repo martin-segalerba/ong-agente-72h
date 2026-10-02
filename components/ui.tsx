@@ -45,7 +45,7 @@ const ETIQUETA_REVISION: Record<Revision["tipo"], string> = {
   aprobado: "aprobado",
   rechazado: "rechazado",
   revertido: "revertido →",
-  confirmado: "confirmado en auditoría",
+  confirmado: "correcto",
   gestionado: "gestionado por una persona",
 };
 
@@ -62,7 +62,7 @@ export function ResumenRevision({ r }: { r: Revision }) {
       )}
       {r.motivo && <span style={{ fontSize: 13, color: "var(--ink-2)", minWidth: 0 }}>“{r.motivo}”</span>}
       <span className="mono" style={{ fontSize: 10, color: "var(--muted-2)", letterSpacing: "0.06em" }}>
-        {r.por === "usuario" ? "· VOS" : "· REVISIÓN SEMANAL"}
+        {r.por === "usuario" ? "· VOS" : r.por === "implicito" ? "· SE ASUMIÓ AL CERRAR LA SEMANA" : "· REVISIÓN SEMANAL"}
       </span>
     </div>
   );

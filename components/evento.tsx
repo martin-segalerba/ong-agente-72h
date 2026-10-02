@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { senalFuerte } from "@/lib/metricas";
+import { NOUL_SENAL, senalFuerte } from "@/lib/metricas";
 import type { EventoProcesado, Revision, Umbrales } from "@/lib/types";
 import { Badge, f2, fechaCorta, PanelRechazar, PanelRevertir, ResumenRevision } from "./ui";
 
@@ -21,7 +21,10 @@ export function TarjetaEvento({ ev, revision, umbrales, editable, variante, aten
   const [panel, setPanel] = useState<"revertir" | "rechazar" | null>(null);
   const d = ev.decision;
   const umbral = umbrales[d.cls];
-  const pesa = ev.jev.conf >= umbral;
+  const pPersona = ev.jev.nouls?.[NOUL_SENAL];
+  // En `auto` decide la Noul; en `aprobar` y `humano`, la confianza del veredicto.
+  const puntaje = d.cls === "auto" ? (pPersona ?? 0) : ev.jev.conf;
+  const pesa = puntaje >= umbral;
   const fuerte = senalFuerte(d, ev.jev, umbrales);
   const base = { por: "usuario" as const, clsOriginal: d.cls, accionOriginal: d.accion };
   const puedeActuar = editable && !revision;
@@ -42,6 +45,11 @@ export function TarjetaEvento({ ev, revision, umbrales, editable, variante, aten
             Aprobar
           </button>
         </>
+      )}
+      {d.cls !== "aprobar" && (
+        <button type="button" className="btn" onClick={() => revisar({ tipo: "confirmado", objetivo: null, motivo: "" })}>
+          Correcto
+        </button>
       )}
       <button type="button" className="btn btn-quiet" onClick={() => setPanel(panel === "revertir" ? null : "revertir")}>
         {panel === "revertir" ? "Cerrar" : "Revertir"}
@@ -125,31 +133,38 @@ export function TarjetaEvento({ ev, revision, umbrales, editable, variante, aten
         </span>
       </div>
       <div style={{ flex: "0 1 300px", minWidth: 240, borderLeft: "1px solid var(--line)", padding: "16px 18px", display: "flex", flexDirection: "column", gap: 8, opacity: !pesa && atenuarRuido ? 0.55 : 1 }}>
-        <span className="eyebrow-sm">Jev · veredicto</span>
+        <span className="eyebrow-sm">{d.cls === "auto" ? "Jev · ¿requiere a una persona?" : "Jev · veredicto"}</span>
         <span className="mono" style={{ fontSize: 13, fontWeight: 500 }}>
-          {ev.jev.v}
+          {d.cls === "auto" ? `veredicto: ${ev.jev.v} ${f2(ev.jev.conf)}` : ev.jev.v}
         </span>
         <div className="fila" style={{ alignItems: "baseline", gap: 8 }}>
           <span className="mono" style={{ fontSize: 36, lineHeight: 1, fontWeight: 500, color: pesa ? "var(--ink)" : "var(--muted-2)" }}>
-            {f2(ev.jev.conf)}
+            {f2(puntaje)}
           </span>
           <span className="mono" style={{ fontSize: 11, color: "var(--muted-2)" }}>
-            confianza
+            {d.cls === "auto" ? "probabilidad de sí" : "confianza"}
           </span>
         </div>
         <div style={{ position: "relative", height: 6, background: "var(--line)", marginTop: 4 }}>
-          <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${ev.jev.conf * 100}%`, background: pesa ? "var(--ink)" : "var(--muted-2)" }} />
+          <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${puntaje * 100}%`, background: pesa ? "var(--ink)" : "var(--muted-2)" }} />
           <div style={{ position: "absolute", top: -4, height: 14, width: 2, left: `${umbral * 100}%`, background: "var(--ink)" }} title={`umbral ${f2(umbral)}`} />
         </div>
         <span className="mono" style={{ fontSize: 11, color: fuerte ? "var(--accent)" : "var(--muted)" }}>
           {fuerte
             ? `≥ umbral ${f2(umbral)} · señal fuerte, revisar`
-            : ev.jev.v === "correcta"
-              ? pesa
-                ? `≥ umbral ${f2(umbral)} · confirma la decisión`
-                : `< umbral ${f2(umbral)} · sin peso`
-              : `< umbral ${f2(umbral)} · ignorado como ruido`}
+            : d.cls === "auto"
+              ? `< umbral ${f2(umbral)} · se resuelve solo`
+              : ev.jev.v === "correcta"
+                ? pesa
+                  ? `≥ umbral ${f2(umbral)} · confirma la decisión`
+                  : `< umbral ${f2(umbral)} · sin peso`
+                : `< umbral ${f2(umbral)} · ignorado como ruido`}
         </span>
+        {d.cls !== "auto" && pPersona !== undefined && (
+          <span className="mono" style={{ fontSize: 11, color: "var(--muted-2)" }}>
+            requiere persona {f2(pPersona)}
+          </span>
+        )}
       </div>
       {pie}
       {paneles}

@@ -11,6 +11,8 @@ export interface EstadoLocal {
   preguntas: PreguntaJev[];
   versiones: VersionReglas[];
   reglasActiva: number | null;
+  /** Versiones que estuvieron activas y se revirtieron. */
+  revertidas: number[];
   decisiones: Record<string, { estado: EstadoPropuesta; motivo: string }>;
   propuestasVivas: Propuesta[];
 }
@@ -21,6 +23,7 @@ export const ESTADO_VACIO: EstadoLocal = {
   preguntas: [],
   versiones: [],
   reglasActiva: null,
+  revertidas: [],
   decisiones: {},
   propuestasVivas: [],
 };

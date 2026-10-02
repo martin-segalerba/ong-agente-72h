@@ -23,7 +23,7 @@ function fechaHora(f: string) {
 function filasMetricas(a: Metricas, b: Metricas) {
   const fila = (k: string, va: number, vb: number, bueno: 1 | -1 | 0, color?: string, sufijo = "") => ({ k, va, vb, bueno, color, sufijo });
   return [
-    { h: "Veredictos de Jev" },
+    { h: "Veredictos de Jev · Σ confianza" },
     fila("correcta", a.veredictos.correcta, b.veredictos.correcta, 1),
     fila("demasiado_cautelosa", a.veredictos.demasiado_cautelosa, b.veredictos.demasiado_cautelosa, -1),
     fila("demasiado_atrevida", a.veredictos.demasiado_atrevida, b.veredictos.demasiado_atrevida, -1),
@@ -36,12 +36,25 @@ function filasMetricas(a: Metricas, b: Metricas) {
     fila("resuelto sin persona", a.sinPersona, b.sinPersona, 0, undefined, " %"),
     { h: "Historial humano" },
     fila(`correcciones reproducidas /${b.reversionesTotales}`, a.reversionesReproducidas, b.reversionesReproducidas, 1),
-    fila("decisiones confirmadas que cambian", a.confirmadasRotas, b.confirmadasRotas, -1),
+    fila("confirmadas por una persona que cambian", a.confirmadasRotas, b.confirmadasRotas, -1),
+    fila("sin revisar, asumidas correctas, que cambian", a.implicitasQueCambian ?? 0, b.implicitasQueCambian ?? 0, 0),
     ...(a.precisionVerdad !== undefined && b.precisionVerdad !== undefined
-      ? [{ h: "Datos sintéticos · no lo ve el loop" }, fila("precisión contra la etiqueta", a.precisionVerdad, b.precisionVerdad, 1, undefined, " %")]
+      ? [
+          { h: "Datos sintéticos · no lo ve el loop" },
+          fila("precisión en frases vistas", a.precisionVerdad, b.precisionVerdad, 1, undefined, " %"),
+          ...(a.precisionNueva !== undefined && b.precisionNueva !== undefined ? [fila("precisión en frases nuevas", a.precisionNueva, b.precisionNueva, 1, undefined, " %")] : []),
+        ]
       : []),
   ];
 }
+
+const NOMBRE_MODELO: Record<string, string> = {
+  "claude-opus-5-5": "Opus 5.5",
+  "claude-sonnet-5-5": "Sonnet 5.5",
+  "claude-opus-5": "Opus 5",
+  "claude-sonnet-5": "Sonnet 5",
+};
+const modelo = (id: string) => NOMBRE_MODELO[id] ?? id;
 
 function Diff({ antes, despues }: { antes: VersionReglas["reglas"]; despues: VersionReglas["reglas"] }) {
   const archivos = [
@@ -117,9 +130,10 @@ interface Props {
   errorLoop: string | null;
   revisionesUsuario: number;
   loopHabilitado: boolean;
+  revertidas: number[];
 }
 
-export function Mejoras({ semanas, propuestas, versiones, activa, umbrales, onDecidir, onRevertirVersion, onEjecutarLoop, ejecutando, errorLoop, revisionesUsuario, loopHabilitado }: Props) {
+export function Mejoras({ semanas, propuestas, versiones, activa, umbrales, onDecidir, onRevertirVersion, onEjecutarLoop, ejecutando, errorLoop, revisionesUsuario, loopHabilitado, revertidas }: Props) {
   const pendiente = propuestas.find((p) => p.estado === "pendiente");
   const [selId, setSelId] = useState<string | null>(null);
   const [confirmarRevert, setConfirmarRevert] = useState(false);
@@ -128,6 +142,7 @@ export function Mejoras({ semanas, propuestas, versiones, activa, umbrales, onDe
   const idxActiva = versiones.findIndex((v) => v.v === activa.v);
   const anterior = versiones[idxActiva + 1];
   const siguienteV = Math.max(...versiones.map((v) => v.v)) + 1;
+  const baseVieja = !!p && p.baseVersion !== activa.v;
 
   return (
     <div className="pila" style={{ gap: 22 }}>
@@ -192,15 +207,28 @@ export function Mejoras({ semanas, propuestas, versiones, activa, umbrales, onDe
                 )}
               </div>
               <div className="card pila" style={{ padding: "12px 14px", gap: 8 }}>
-                <span className="eyebrow-sm">Lectura de Opus · secundaria a los números</span>
-                <span style={{ fontSize: 13, lineHeight: 1.5, color: "var(--ink-2)" }}>{p.razonamiento}</span>
-                <span style={{ fontSize: 13, lineHeight: 1.5, color: "var(--ink-2)" }}>
-                  <span className="mono" style={{ fontSize: 11, color: p.revisionOpus.mejora ? "var(--accent)" : "var(--muted)" }}>
-                    {p.revisionOpus.mejora ? "MEJORA · " : "NO MEJORA · "}
-                  </span>
-                  {p.revisionOpus.porQue}
+                <span className="eyebrow-sm">Lectura de los modelos · secundaria a los números</span>
+                <span className="mono" style={{ fontSize: 11, color: "var(--muted-2)" }}>
+                  PROPUESTA · {modelo(p.uso?.propuesta.modelo ?? "")}
                 </span>
-                <span style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--muted)" }}>Riesgo: {p.revisionOpus.riesgos}</span>
+                <span style={{ fontSize: 13, lineHeight: 1.5, color: "var(--ink-2)" }}>{p.razonamiento}</span>
+                <span className="mono" style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 4 }}>
+                  REVISIÓN · {modelo(p.revision.modelo)}
+                </span>
+                <span style={{ fontSize: 13, lineHeight: 1.5, color: "var(--ink-2)" }}>
+                  <span className="mono" style={{ fontSize: 11, color: p.revision.mejora ? "var(--accent)" : "var(--muted)" }}>
+                    {p.revision.mejora ? "MEJORA · " : "NO MEJORA · "}
+                  </span>
+                  {p.revision.porQue}
+                </span>
+                <span style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--muted)" }}>Riesgo: {p.revision.riesgos}</span>
+                {p.uso && (
+                  <span className="mono" style={{ fontSize: 11, color: "var(--muted-2)", borderTop: "1px solid var(--line-soft)", paddingTop: 8, marginTop: 2 }}>
+                    {p.uso.propuesta.via === "sesion"
+                      ? "generada por subagentes en una sesión de Claude Code, a ciegas y sin costo de API"
+                      : `costo de esta propuesta: US$ ${p.uso.costoUSD.toFixed(2)} · ${(p.uso.propuesta.entrada + p.uso.revision.entrada).toLocaleString("es-ES")} tokens de entrada · ${(p.uso.propuesta.salida + p.uso.revision.salida).toLocaleString("es-ES")} de salida`}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -253,10 +281,15 @@ export function Mejoras({ semanas, propuestas, versiones, activa, umbrales, onDe
                 <button type="button" className="btn btn-lg" style={{ marginLeft: "auto" }} onClick={() => onDecidir(p, false)}>
                   Rechazar
                 </button>
-                <button type="button" className="btn btn-primary btn-lg" onClick={() => onDecidir(p, true)}>
+                <button type="button" className="btn btn-primary btn-lg" disabled={baseVieja} onClick={() => onDecidir(p, true)}>
                   Aprobar y aplicar como v{siguienteV}
                 </button>
               </>
+            )}
+            {p.estado === "pendiente" && baseVieja && (
+              <span className="mono" style={{ flexBasis: "100%", fontSize: 12, color: ST.humano.c, textAlign: "right" }}>
+                Armada sobre v{p.baseVersion}; las reglas activas son v{activa.v}. Ejecutá el loop sobre la versión activa para tener una propuesta comparable.
+              </span>
             )}
           </div>
         </>
@@ -312,13 +345,13 @@ export function Mejoras({ semanas, propuestas, versiones, activa, umbrales, onDe
             </button>
           </div>
         )}
-        {versiones.map((v, i) => (
-          <div key={v.v} className="mono" style={{ display: "grid", gridTemplateColumns: "56px 100px 70px minmax(0,1fr) auto", gap: 14, padding: "10px 16px", borderBottom: "1px solid var(--line-soft)", alignItems: "center", fontSize: 12, opacity: i < idxActiva ? 0.5 : 1 }}>
+        {versiones.map((v) => (
+          <div key={v.v} className="mono" style={{ display: "grid", gridTemplateColumns: "56px 100px 70px minmax(0,1fr) auto", gap: 14, padding: "10px 16px", borderBottom: "1px solid var(--line-soft)", alignItems: "center", fontSize: 12, opacity: revertidas.includes(v.v) ? 0.5 : 1 }}>
             <span style={{ fontWeight: 600 }}>v{v.v}</span>
             <span style={{ color: "var(--muted-2)" }}>{v.fecha}</span>
             <span style={{ color: "var(--muted)" }}>{v.propuesta ?? "—"}</span>
             <span style={{ fontFamily: "var(--sans)", fontSize: 13, color: "var(--ink-2)" }}>{v.nota.replace(/`/g, "")}</span>
-            <span style={{ color: "var(--accent)", fontSize: 10, letterSpacing: "0.08em" }}>{v.v === activa.v ? "ACTIVA" : i < idxActiva ? "REVERTIDA" : ""}</span>
+            <span style={{ color: "var(--accent)", fontSize: 10, letterSpacing: "0.08em" }}>{v.v === activa.v ? "ACTIVA" : revertidas.includes(v.v) ? "REVERTIDA" : ""}</span>
           </div>
         ))}
       </section>

@@ -1,8 +1,8 @@
 import { decidir, validarReglas } from "./engine";
 import { auditarLote } from "./jev";
-import { type Fila, calcularMetricas, esCorrectiva, reproduce, senalFuerte } from "./metricas";
-import { proponer, revisar, type Evidencia } from "./opus";
-import type { Auditoria, Decision, EventoProcesado, Metricas, PreguntaJev, Propuesta, Reglas, Umbrales } from "./types";
+import { type Fila, calcularMetricas, esCorrectiva, precisionContra, reproduce, rompeConfirmada, senalFuerte } from "./metricas";
+import { type Evidencia, proponer, revisar } from "./opus";
+import type { Auditoria, Decision, Evento, EventoProcesado, Metricas, PreguntaJev, Propuesta, Reglas, Umbrales, Uso, Verdad } from "./types";
 
 export interface EntradaLoop {
   eventos: EventoProcesado[];
@@ -11,10 +11,12 @@ export interface EntradaLoop {
   pregunta: PreguntaJev;
   umbrales: Umbrales;
   cache: Record<string, Auditoria>;
-  rechazadas: { titulo: string; motivo: string }[];
+  rechazadas: { titulo: string; motivo: string; rompe?: Propuesta["rompe"] }[];
   id: string;
   fecha: string;
   semanaDatos: string;
+  /** Paráfrasis que el loop nunca ve: solo sirven para medir precisión en frases nuevas. */
+  evaluacion?: { ev: Evento; verdad: Verdad }[];
   log?: (s: string) => void;
 }
 
@@ -24,6 +26,7 @@ function construirEvidencia(e: EntradaLoop, actuales: Decision[], auds: Auditori
   const stats: Evidencia["estadisticasPorRegla"] = {};
   const correcciones: unknown[] = [];
   const confirmadasPorRegla: Record<string, unknown[]> = {};
+  const sinRevisarPorRegla: Record<string, unknown[]> = {};
   const debiles: unknown[] = [];
 
   e.eventos.forEach((ev, i) => {
@@ -41,11 +44,14 @@ function construirEvidencia(e: EntradaLoop, actuales: Decision[], auds: Auditori
         persona: { revision: r.tipo, deberia_ser: r.objetivo, motivo: r.motivo },
         con_reglas_actuales: { clasificacion: d.cls, regla: d.regla, accion: d.accion, ya_resuelta: reproduce(r, d) },
       });
-    } else if (r) {
+    } else if (r && r.por !== "implicito") {
       stats[k].confirmados++;
       (confirmadasPorRegla[k] ??= []).push({ tipo: ev.tipo, texto: ev.texto, clasificacion_confirmada: r.clsOriginal });
-    } else if (auds[i].v !== "correcta" && !senalFuerte(d, auds[i], e.umbrales)) {
-      debiles.push({ tipo: ev.tipo, texto: ev.texto, clasificacion: d.cls, accion: d.accion, jev: auds[i] });
+    } else {
+      if (r) (sinRevisarPorRegla[k] ??= []).push({ tipo: ev.tipo, texto: ev.texto, clasificacion: r.clsOriginal });
+      if (auds[i].v !== "correcta" && !senalFuerte(d, auds[i], e.umbrales)) {
+        debiles.push({ tipo: ev.tipo, texto: ev.texto, clasificacion: d.cls, accion: d.accion, jev: auds[i] });
+      }
     }
   });
 
@@ -58,15 +64,19 @@ function construirEvidencia(e: EntradaLoop, actuales: Decision[], auds: Auditori
     estadisticasPorRegla: stats,
     correcciones: [...sinResolver, ...resueltas],
     confirmadas: Object.values(confirmadasPorRegla).flatMap((xs) => xs.slice(-3)),
+    sinRevisar: Object.values(sinRevisarPorRegla).flatMap((xs) => xs.slice(-2)),
     senalesDebiles: debiles.slice(-12),
     propuestasRechazadas: e.rechazadas,
   };
 }
 
-function sinVerdad(m: Metricas): Omit<Metricas, "precisionVerdad"> {
-  const { precisionVerdad: _, ...resto } = m;
+/** Lo que el modelo revisor ve: sin ninguna métrica calculada contra la etiqueta sintética. */
+function sinVerdad(m: Metricas): Omit<Metricas, "precisionVerdad" | "precisionNueva"> {
+  const { precisionVerdad: _v, precisionNueva: _n, ...resto } = m;
   return resto;
 }
+
+const sumarUso = (a: Uso, b: Uso): Uso => ({ modelo: a.modelo, via: a.via, entrada: a.entrada + b.entrada, salida: a.salida + b.salida, costoUSD: Math.round((a.costoUSD + b.costoUSD) * 10000) / 10000 });
 
 /** Una vuelta del loop: propone, re-ejecuta todo el historial, audita lo que cambió y revisa. */
 export async function ejecutarLoop(e: EntradaLoop): Promise<Propuesta | null> {
@@ -76,17 +86,19 @@ export async function ejecutarLoop(e: EntradaLoop): Promise<Propuesta | null> {
   const audActuales = await auditarLote(e.pregunta, e.eventos.map((ev, i) => ({ ev, d: actuales[i] })), e.cache);
 
   const evidencia = construirEvidencia(e, actuales, audActuales);
-  log(`  opus: proponiendo (${evidencia.correcciones.length} correcciones, ${evidencia.senalesDebiles.length} señales débiles)`);
-  let salida = await proponer(evidencia);
+  log(`  propuesta: ${evidencia.correcciones.length} correcciones, ${evidencia.senalesDebiles.length} señales débiles`);
+  let { salida, uso: usoPropuesta } = await proponer(e.id, evidencia);
   let errores = validarReglas(salida.reglas);
   if (errores.length) {
-    log(`  opus: propuesta inválida (${errores.join("; ")}), reintento`);
-    salida = await proponer(evidencia, errores);
+    log(`  propuesta inválida (${errores.join("; ")}), reintento`);
+    const otra = await proponer(e.id, evidencia, errores);
+    salida = otra.salida;
+    usoPropuesta = sumarUso(usoPropuesta, otra.uso);
     errores = validarReglas(salida.reglas);
     if (errores.length) throw new Error(`Propuesta inválida tras reintento: ${errores.join("; ")}`);
   }
   if (!salida.cambios.length) {
-    log("  opus: sin cambios propuestos");
+    log("  sin cambios propuestos");
     return null;
   }
 
@@ -97,13 +109,23 @@ export async function ejecutarLoop(e: EntradaLoop): Promise<Propuesta | null> {
     e.eventos.map((ev, i) => ({ decision: ds[i], jev: as[i], revision: ev.revision, verdad: ev.verdad }));
   const antes = calcularMetricas(filas(actuales, audActuales), e.umbrales);
   const despues = calcularMetricas(filas(nuevas, audNuevas), e.umbrales);
+  if (e.evaluacion?.length) {
+    antes.precisionNueva = precisionContra(e.evaluacion.map((x) => ({ d: decidir(x.ev, e.reglas), v: x.verdad })));
+    despues.precisionNueva = precisionContra(e.evaluacion.map((x) => ({ d: decidir(x.ev, salida.reglas), v: x.verdad })));
+  }
+
+  const rompe = e.eventos
+    .map((ev, i) => ({ ev, d: nuevas[i] }))
+    .filter(({ ev, d }) => ev.revision && rompeConfirmada(ev.revision, d))
+    .slice(0, 10)
+    .map(({ ev, d }) => ({ tipo: ev.tipo, texto: ev.texto, confirmada: ev.revision!.clsOriginal, propuesta: d.cls }));
 
   const cambiados = e.eventos
     .map((ev, i) => ({ ev, i }))
     .filter(({ i }) => actuales[i].cls !== nuevas[i].cls || actuales[i].accion !== nuevas[i].accion);
 
   const prioridad = ({ ev, i }: { ev: EventoProcesado; i: number }) =>
-    (ev.revision && esCorrectiva(ev.revision) ? (reproduce(ev.revision, nuevas[i]) ? 0 : 1) : ev.revision ? 2 : 3) * 10 -
+    (ev.revision && esCorrectiva(ev.revision) ? (reproduce(ev.revision, nuevas[i]) ? 0 : 1) : ev.revision?.por === "usuario" || ev.revision?.por === "simulado" ? 2 : 3) * 10 -
     Math.abs(audNuevas[i].conf - audActuales[i].conf);
   const ordenados = [...cambiados].sort((a, b) => prioridad(a) - prioridad(b));
   const ejemplo = ({ ev, i }: { ev: EventoProcesado; i: number }) => ({
@@ -115,8 +137,8 @@ export async function ejecutarLoop(e: EntradaLoop): Promise<Propuesta | null> {
     revision: ev.revision,
   });
 
-  log(`  opus: revisando (${cambiados.length} eventos cambian)`);
-  const rev = await revisar({
+  log(`  revisión: ${cambiados.length} eventos cambian`);
+  const { salida: rev, uso: usoRevision } = await revisar(e.id, {
     titulo: salida.titulo,
     cambios: salida.cambios,
     metricas_actual: sinVerdad(antes),
@@ -124,7 +146,7 @@ export async function ejecutarLoop(e: EntradaLoop): Promise<Propuesta | null> {
     eventos_que_cambian: cambiados.length,
     ejemplos: ordenados.slice(0, 12).map((x) => {
       const { revision, ...resto } = ejemplo(x);
-      return { ...resto, revision_humana: revision ? { tipo: revision.tipo, deberia_ser: revision.objetivo, motivo: revision.motivo } : null };
+      return { ...resto, revision_humana: revision ? { tipo: revision.tipo, por: revision.por, deberia_ser: revision.objetivo, motivo: revision.motivo } : null };
     }),
   });
 
@@ -141,29 +163,34 @@ export async function ejecutarLoop(e: EntradaLoop): Promise<Propuesta | null> {
     metricasAntes: antes,
     metricasDespues: despues,
     cambiados: cambiados.length,
+    rompe,
     ejemplos: ordenados.slice(0, 3).map(ejemplo),
-    revisionOpus: { mejora: rev.mejora, porQue: rev.por_que, riesgos: rev.riesgos },
+    revision: { modelo: usoRevision.modelo, mejora: rev.mejora, porQue: rev.por_que, riesgos: rev.riesgos },
+    uso: { propuesta: usoPropuesta, revision: usoRevision, costoUSD: Math.round((usoPropuesta.costoUSD + usoRevision.costoUSD) * 10000) / 10000 },
     estado: "pendiente",
     decididaPor: null,
     motivoDecision: "",
   };
 }
 
-/** Criterio con el que la persona simulada aprueba o rechaza: solo números, no la narrativa de Opus. */
+/** Margen para «demasiado_atrevida» ponderado: medio veredicto seguro de diferencia es ruido. */
+const TOLERANCIA_ATREVIDA = 0.5;
+
+/** Criterio con el que la persona simulada aprueba o rechaza: solo números, no la narrativa del modelo. */
 export function decisionSimulada(p: Propuesta): { aprobar: boolean; motivo: string } {
   const a = p.metricasAntes;
   const d = p.metricasDespues;
   const fallos: string[] = [];
-  if (!p.revisionOpus.mejora) fallos.push("la revisión de Opus no encuentra mejora");
-  if (d.veredictos.demasiado_atrevida > a.veredictos.demasiado_atrevida)
-    fallos.push(`sube «demasiado_atrevida» (${a.veredictos.demasiado_atrevida} → ${d.veredictos.demasiado_atrevida})`);
-  if (d.confirmadasRotas > a.confirmadasRotas) fallos.push(`rompe ${d.confirmadasRotas - a.confirmadasRotas} decisiones ya confirmadas`);
+  if (!p.revision.mejora) fallos.push("la revisión no encuentra mejora");
+  if (d.veredictos.demasiado_atrevida > a.veredictos.demasiado_atrevida + TOLERANCIA_ATREVIDA)
+    fallos.push(`sube «demasiado_atrevida» ponderado (${a.veredictos.demasiado_atrevida} → ${d.veredictos.demasiado_atrevida})`);
+  if (d.confirmadasRotas > a.confirmadasRotas) fallos.push(`cambia ${d.confirmadasRotas - a.confirmadasRotas} decisiones que una persona confirmó`);
   if (d.reversionesReproducidas < a.reversionesReproducidas) fallos.push("reproduce menos correcciones humanas");
-  if (d.veredictos.correcta < a.veredictos.correcta) fallos.push(`baja «correcta» (${a.veredictos.correcta} → ${d.veredictos.correcta})`);
+  if (d.veredictos.correcta < a.veredictos.correcta - TOLERANCIA_ATREVIDA) fallos.push(`baja «correcta» ponderado (${a.veredictos.correcta} → ${d.veredictos.correcta})`);
   return fallos.length
     ? { aprobar: false, motivo: `Rechazada: ${fallos.join("; ")}.` }
     : {
         aprobar: true,
-        motivo: `Aprobada: reproduce ${d.reversionesReproducidas}/${d.reversionesTotales} correcciones (antes ${a.reversionesReproducidas}), «correcta» ${a.veredictos.correcta} → ${d.veredictos.correcta}, sin romper confirmadas.`,
+        motivo: `Aprobada: reproduce ${d.reversionesReproducidas}/${d.reversionesTotales} correcciones (antes ${a.reversionesReproducidas}), «correcta» ponderado ${a.veredictos.correcta} → ${d.veredictos.correcta}, sin cambiar decisiones confirmadas.`,
       };
 }

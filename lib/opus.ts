@@ -1,10 +1,22 @@
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import { CAMPOS, LIMITES_SOP } from "./engine";
-import type { Reglas } from "./types";
+import type { Reglas, Uso } from "./types";
 
-export const MODELO_OPUS = "claude-opus-5-5";
+/** Proponer reglas es la tarea difícil del loop; revisar la comparación es acotado y lo hace otro modelo. */
+export const MODELO_PROPUESTA = process.env.MODELO_PROPUESTA ?? "claude-opus-5-5";
+export const MODELO_REVISION = process.env.MODELO_REVISION ?? "claude-sonnet-5-5";
+
+/** USD por millón de tokens (entrada, salida). Las lecturas de caché cuestan menos; acá se cobran como entrada normal. */
+const PRECIOS: Record<string, [number, number]> = {
+  "claude-opus-5-5": [4, 20],
+  "claude-sonnet-5-5": [2, 10],
+  "claude-opus-5": [5, 25],
+  "claude-sonnet-5": [2, 10],
+};
 
 const clase = z.enum(["auto", "aprobar", "humano"]);
 
@@ -69,6 +81,8 @@ Con la evidencia de esta semana, proponé una versión nueva de las reglas que m
 - Cambios pequeños y generales: como mucho tres cambios por propuesta, priorizando lo que más eventos afecta o lo más grave.
 - Nunca reglas para un evento concreto: nada de ids, nombres propios, importes ni textos copiados literalmente. Las listas de palabras tienen que capturar la señal general en variantes habituales del español.
 - No rompas lo que funciona: las decisiones que una persona confirmó como correctas tienen que seguir igual.
+- "propuestasRechazadas[].rompe" lista las decisiones que una persona confirmó y que esa propuesta cambiaba: tu propuesta tiene que dejarlas como estaban.
+- "sinRevisar" son decisiones que nadie miró y se asumieron correctas al cerrar la semana: tomalas como contexto, no como confirmaciones. Pueden esconder errores.
 - Las acciones auto no pueden decir que van a preguntar, consultar o esperar a nadie.
 - Mantené los ids de las reglas que no cambian; las nuevas usan el siguiente número libre (R5, R6… / S1, S2…).
 - Si la evidencia no justifica ningún cambio, devolvé las reglas actuales sin cambios y una lista de cambios vacía.
@@ -76,20 +90,50 @@ Con la evidencia de esta semana, proponé una versión nueva de las reglas que m
 - "razonamiento": tres o cuatro frases sobre qué patrón viste en la evidencia y por qué el cambio lo corrige sin sobreajustar.`;
 
 const SISTEMA_REVISAR = `Revisás una propuesta de cambio en las reglas de clasificación de la bandeja de una ONG pequeña. Te paso las métricas de la versión actual y de la propuesta, calculadas sobre todos los eventos históricos, y ejemplos de eventos cuya decisión cambia.
-Decidí si, en conjunto, la propuesta es mejor que la versión actual. Dos condiciones son innegociables: no puede romper decisiones que una persona confirmó y no puede aumentar los veredictos "demasiado_atrevida". Cumplidas esas dos, pesá el resto en conjunto: reproducir más correcciones humanas y sumar veredictos "correcta" es lo que más cuenta; un empeoramiento pequeño en otra métrica es aceptable si queda claramente compensado. Un aumento de autonomía que no viene acompañado de más veredictos "correcta" no es una mejora.
+Los veredictos de Jev vienen sumados por su confianza: un veredicto con confianza 0,3 suma 0,3, así que subas pequeñas suelen ser ruido.
+Decidí si, en conjunto, la propuesta es mejor que la versión actual. Dos condiciones son innegociables: no puede romper decisiones que una persona confirmó ("confirmadasRotas") y no puede aumentar de forma clara los veredictos "demasiado_atrevida". "implicitasQueCambian" son decisiones que nadie revisó: informativas, no bloquean. Cumplidas esas dos, pesá el resto en conjunto: reproducir más correcciones humanas y sumar veredictos "correcta" es lo que más cuenta; un empeoramiento pequeño en otra métrica es aceptable si queda claramente compensado. Un aumento de autonomía que no viene acompañado de más veredictos "correcta" no es una mejora.
 Si ves en los ejemplos un problema concreto (por ejemplo, una acción que promete algo sin base), decí si alcanza para rechazar o si es un riesgo a vigilar.
 "por_que": dos o tres frases con los números que justifican tu decisión. "riesgos": una frase sobre qué podría salir mal con esta propuesta en eventos nuevos.`;
 
 let cliente: Anthropic | null = null;
-function opus(): Anthropic {
+function anthropic(): Anthropic {
   if (!process.env.ANTHROPIC_API_KEY) throw new Error("Falta ANTHROPIC_API_KEY");
   cliente ??= new Anthropic();
   return cliente;
 }
 
-async function llamar<T>(sistema: string, contenido: string, schema: z.ZodType<T>, effort: "medium" | "high", maxTokens: number): Promise<T> {
-  const stream = opus().beta.messages.stream({
-    model: MODELO_OPUS,
+function uso(modelo: string, u: { input_tokens: number; output_tokens: number; cache_read_input_tokens?: number | null; cache_creation_input_tokens?: number | null }): Uso {
+  const entrada = u.input_tokens + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
+  const [pe, ps] = PRECIOS[modelo] ?? [0, 0];
+  return { modelo, via: "api", entrada, salida: u.output_tokens, costoUSD: Math.round(((entrada * pe + u.output_tokens * ps) / 1e6) * 10000) / 10000 };
+}
+
+/** La simulación se detiene hasta que alguien grabe la respuesta a este pedido. */
+export class PendienteDeRespuesta extends Error {
+  constructor(public id: string) {
+    super(`Falta la respuesta grabada ${id}`);
+  }
+}
+
+/**
+ * Modo sin API: con RESPUESTAS_DIR, cada llamada lee su respuesta de `<id>.json`. Si no existe,
+ * deja el pedido completo (sistema, contenido y formato) en `pendiente.json` y se detiene.
+ * Quien responde ve exactamente lo mismo que vería el modelo por la API, nada más.
+ */
+function grabada<T>(id: string, modelo: string, effort: string, sistema: string, contenido: string, schema: z.ZodType<T>): { salida: T; uso: Uso } {
+  const dir = process.env.RESPUESTAS_DIR!;
+  const archivo = join(dir, `${id}.json`);
+  if (existsSync(archivo)) {
+    return { salida: schema.parse(JSON.parse(readFileSync(archivo, "utf8"))), uso: { modelo, via: "sesion", entrada: 0, salida: 0, costoUSD: 0 } };
+  }
+  writeFileSync(join(dir, "pendiente.json"), JSON.stringify({ id, modelo, effort, sistema, contenido, formato: z.toJSONSchema(schema) }, null, 1));
+  throw new PendienteDeRespuesta(id);
+}
+
+async function llamar<T>(id: string, modelo: string, sistema: string, contenido: string, schema: z.ZodType<T>, effort: "medium" | "high", maxTokens: number): Promise<{ salida: T; uso: Uso }> {
+  if (process.env.RESPUESTAS_DIR) return grabada(id, modelo, effort, sistema, contenido, schema);
+  const stream = anthropic().beta.messages.stream({
+    model: modelo,
     max_tokens: maxTokens,
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default",
@@ -98,10 +142,10 @@ async function llamar<T>(sistema: string, contenido: string, schema: z.ZodType<T
     messages: [{ role: "user", content: contenido }],
   });
   const msg = await stream.finalMessage();
-  if (msg.stop_reason === "refusal") throw new Error(`Opus rechazó la solicitud: ${msg.stop_details?.category ?? "sin categoría"}`);
-  if (msg.stop_reason === "max_tokens") throw new Error("Opus se quedó sin tokens de salida");
+  if (msg.stop_reason === "refusal") throw new Error(`${modelo} rechazó la solicitud: ${msg.stop_details?.category ?? "sin categoría"}`);
+  if (msg.stop_reason === "max_tokens") throw new Error(`${modelo} se quedó sin tokens de salida`);
   const texto = msg.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
-  return schema.parse(JSON.parse(texto));
+  return { salida: schema.parse(JSON.parse(texto)), uso: uso(msg.model ?? modelo, msg.usage) };
 }
 
 export interface Evidencia {
@@ -109,18 +153,19 @@ export interface Evidencia {
   estadisticasPorRegla: Record<string, { eventos: number; corregidos: number; confirmados: number }>;
   correcciones: unknown[];
   confirmadas: unknown[];
+  sinRevisar: unknown[];
   senalesDebiles: unknown[];
-  propuestasRechazadas: { titulo: string; motivo: string }[];
+  propuestasRechazadas: { titulo: string; motivo: string; rompe?: unknown[] }[];
 }
 
-export async function proponer(ev: Evidencia, erroresPrevios?: string[]): Promise<SalidaPropuesta> {
+export async function proponer(id: string, ev: Evidencia, erroresPrevios?: string[]): Promise<{ salida: SalidaPropuesta; uso: Uso }> {
   let contenido = `Evidencia acumulada hasta hoy (JSON):\n\n${JSON.stringify(ev, null, 1)}`;
   if (erroresPrevios?.length) {
     contenido += `\n\nTu propuesta anterior no pasó la validación del motor de reglas. Corregí estos errores:\n- ${erroresPrevios.join("\n- ")}`;
   }
-  return llamar(SISTEMA_PROPONER, contenido, PropuestaSchema, "high", 48000);
+  return llamar(erroresPrevios?.length ? `${id}-propuesta-reintento` : `${id}-propuesta`, MODELO_PROPUESTA, SISTEMA_PROPONER, contenido, PropuestaSchema, "high", 48000);
 }
 
-export async function revisar(datos: unknown): Promise<SalidaRevision> {
-  return llamar(SISTEMA_REVISAR, `Datos de la comparación (JSON):\n\n${JSON.stringify(datos, null, 1)}`, RevisionSchema, "medium", 8000);
+export async function revisar(id: string, datos: unknown): Promise<{ salida: SalidaRevision; uso: Uso }> {
+  return llamar(`${id}-revision`, MODELO_REVISION, SISTEMA_REVISAR, `Datos de la comparación (JSON):\n\n${JSON.stringify(datos, null, 1)}`, RevisionSchema, "medium", 8000);
 }

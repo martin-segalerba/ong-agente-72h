@@ -8,11 +8,12 @@ const H = 220;
 const M = { t: 16, r: 116, b: 30, l: 40 };
 
 const SERIES = [
-  { k: "precision" as const, label: "Precisión real", color: "var(--serie-precision)", valor: (s: Semana) => s.metricas.precisionVerdad ?? 0 },
-  { k: "autonomia" as const, label: "Resuelto sin persona", color: "var(--serie-autonomia)", valor: (s: Semana) => s.metricas.sinPersona },
+  { k: "vista" as const, corto: "vista", label: "Precisión en frases vistas", color: "var(--serie-precision)", guion: undefined, valor: (s: Semana) => s.metricas.precisionVerdad ?? 0 },
+  { k: "nueva" as const, corto: "nueva", label: "Precisión en frases nuevas", color: "var(--serie-nueva)", guion: "5 4", valor: (s: Semana) => s.metricas.precisionNueva ?? 0 },
+  { k: "autonomia" as const, corto: "autonomía", label: "Resuelto sin persona", color: "var(--serie-autonomia)", guion: undefined, valor: (s: Semana) => s.metricas.sinPersona },
 ];
 
-/** Precisión contra la etiqueta sintética y autonomía, semana a semana, en un solo eje (ambas en %). */
+/** Precisión contra la etiqueta sintética (en frases vistas y nuevas) y autonomía, en un solo eje: todas en %. */
 export function Evolucion({ semanas, propuestas }: { semanas: Semana[]; propuestas: Propuesta[] }) {
   const [hover, setHover] = useState<number | null>(null);
   const [tabla, setTabla] = useState(false);
@@ -24,6 +25,14 @@ export function Evolucion({ semanas, propuestas }: { semanas: Semana[]; propuest
   const cambios = semanas.map((s, i) => (i > 0 && s.reglasVersion !== semanas[i - 1].reglasVersion ? s.reglasVersion : null));
   const ultima = semanas.length - 1;
   const correcciones = (s: Semana) => s.metricas.reversionesTotales;
+  // Etiquetas del extremo derecho separadas al menos 13 px para que no se pisen.
+  const yEtiqueta: Record<string, number> = {};
+  [...SERIES]
+    .map((s) => ({ k: s.k, y: y(s.valor(semanas[ultima])) }))
+    .sort((a, b) => a.y - b.y)
+    .forEach((e, i, xs) => {
+      yEtiqueta[e.k] = i ? Math.max(e.y, yEtiqueta[xs[i - 1].k] + 13) : e.y;
+    });
 
   return (
     <section className="card" style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -37,7 +46,9 @@ export function Evolucion({ semanas, propuestas }: { semanas: Semana[]; propuest
         <div className="fila" style={{ gap: 16, flexWrap: "wrap" }}>
           {SERIES.map((s) => (
             <span key={s.k} className="fila" style={{ gap: 7, fontSize: 12, color: "var(--ink-2)" }}>
-              <span style={{ width: 14, height: 2, background: s.color, display: "inline-block" }} />
+              <svg width="16" height="4" aria-hidden="true">
+                <line x1="0" x2="16" y1="2" y2="2" stroke={s.color} strokeWidth="2" strokeDasharray={s.guion} />
+              </svg>
               {s.label}
             </span>
           ))}
@@ -52,7 +63,7 @@ export function Evolucion({ semanas, propuestas }: { semanas: Semana[]; propuest
           <table className="mono" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ color: "var(--muted)", textAlign: "right" }}>
-                {["semana", "reglas", "eventos", "precisión real", "sin persona", "correcciones", "señales fuertes"].map((h, i) => (
+                {["semana", "reglas", "eventos", "precisión vista", "precisión nueva", "sin persona", "correcciones", "señales fuertes"].map((h, i) => (
                   <th key={h} style={{ fontWeight: 500, padding: "6px 8px", textAlign: i < 2 ? "left" : "right", borderBottom: "1px solid var(--line)" }}>
                     {h}
                   </th>
@@ -69,6 +80,7 @@ export function Evolucion({ semanas, propuestas }: { semanas: Semana[]; propuest
                   <td style={{ padding: "6px 8px", textAlign: "left", color: "var(--muted)" }}>v{s.reglasVersion}</td>
                   <td style={{ padding: "6px 8px" }}>{s.metricas.eventos}</td>
                   <td style={{ padding: "6px 8px" }}>{s.metricas.precisionVerdad ?? "—"} %</td>
+                  <td style={{ padding: "6px 8px" }}>{s.metricas.precisionNueva ?? "—"} %</td>
                   <td style={{ padding: "6px 8px" }}>{s.metricas.sinPersona} %</td>
                   <td style={{ padding: "6px 8px" }}>{s.enCurso ? "—" : correcciones(s)}</td>
                   <td style={{ padding: "6px 8px" }}>{s.metricas.sobreUmbral}</td>
@@ -79,7 +91,7 @@ export function Evolucion({ semanas, propuestas }: { semanas: Semana[]; propuest
         </div>
       ) : (
         <div style={{ position: "relative" }}>
-          <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} role="img" aria-label="Precisión real y porcentaje resuelto sin persona por semana" onMouseLeave={() => setHover(null)}>
+          <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} role="img" aria-label="Precisión en frases vistas y nuevas, y porcentaje resuelto sin persona, por semana" onMouseLeave={() => setHover(null)}>
             {[0, 25, 50, 75, 100].map((v) => (
               <g key={v}>
                 <line x1={M.l} x2={M.l + iw} y1={y(v)} y2={y(v)} stroke="var(--line-soft)" strokeWidth={1} />
@@ -101,12 +113,12 @@ export function Evolucion({ semanas, propuestas }: { semanas: Semana[]; propuest
             {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={M.t} y2={M.t + ih} stroke="var(--muted-2)" strokeWidth={1} />}
             {SERIES.map((s) => (
               <g key={s.k}>
-                <path d={camino(s.valor)} fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+                <path d={camino(s.valor)} fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.guion} />
                 {semanas.map((w, i) => (
                   <circle key={w.id} cx={x(i)} cy={y(s.valor(w))} r={hover === i ? 5 : 4} fill={s.color} stroke="var(--card)" strokeWidth={2} />
                 ))}
-                <text x={x(ultima) + 10} y={y(s.valor(semanas[ultima])) + 4} fontSize={11} fill="var(--ink-2)" fontFamily="var(--mono)">
-                  {s.valor(semanas[ultima]).toFixed(0)}% {s.k === "precision" ? "precisión" : "autonomía"}
+                <text x={x(ultima) + 10} y={yEtiqueta[s.k] + 4} fontSize={11} fill="var(--ink-2)" fontFamily="var(--mono)">
+                  {s.valor(semanas[ultima]).toFixed(0)}% {s.corto}
                 </text>
               </g>
             ))}
@@ -140,7 +152,8 @@ export function Evolucion({ semanas, propuestas }: { semanas: Semana[]; propuest
                 {semanas[hover].id} · reglas v{semanas[hover].reglasVersion}
                 {semanas[hover].enCurso ? " · en curso" : ""}
               </div>
-              <div style={{ color: "var(--ink-2)" }}>precisión real {semanas[hover].metricas.precisionVerdad ?? "—"} %</div>
+              <div style={{ color: "var(--ink-2)" }}>precisión en frases vistas {semanas[hover].metricas.precisionVerdad ?? "—"} %</div>
+              <div style={{ color: "var(--ink-2)" }}>precisión en frases nuevas {semanas[hover].metricas.precisionNueva ?? "—"} %</div>
               <div style={{ color: "var(--ink-2)" }}>sin persona {semanas[hover].metricas.sinPersona} %</div>
               <div style={{ color: "var(--muted)" }}>
                 {semanas[hover].metricas.eventos} eventos · {semanas[hover].metricas.sobreUmbral} señales fuertes
@@ -156,8 +169,8 @@ export function Evolucion({ semanas, propuestas }: { semanas: Semana[]; propuest
         </div>
       )}
       <div className="nota-sm">
-        La precisión real se mide contra la etiqueta que conoce el generador de semanas sintéticas: ni las reglas, ni Jev, ni Opus la ven. En producción no existe;
-        ahí el sistema se guía solo por las correcciones humanas y el veredicto de Jev.
+        La precisión se mide contra la etiqueta que conoce el generador de semanas sintéticas; ni las reglas, ni Jev, ni los modelos la ven. «Vista» usa los mismos textos de los
+        que aprende el loop; «nueva», paráfrasis que el loop nunca leyó: la distancia entre las dos es cuánto memoriza en vez de generalizar. En producción no existe ninguna de las dos.
       </div>
     </section>
   );

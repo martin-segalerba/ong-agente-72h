@@ -41,6 +41,8 @@ export function Auditor({ historial }: { historial: HistorialCliente }) {
 
   const onDecidir = (p: Propuesta, aprobar: boolean) =>
     actualizar((s) => {
+      // Una propuesta armada sobre otra versión no se puede aplicar: sus métricas no comparan contra las reglas activas.
+      if (aprobar && p.baseVersion !== versionActiva(historial, s).v) return s;
       const decisiones = {
         ...s.decisiones,
         [p.id]: aprobar
@@ -70,7 +72,7 @@ export function Auditor({ historial }: { historial: HistorialCliente }) {
           umbrales,
           pregunta: preguntas[0],
           revisiones: estado.revisiones,
-          rechazadas: propuestas.filter((p) => p.estado === "rechazada").map((p) => ({ titulo: p.titulo, motivo: p.motivoDecision })),
+          rechazadas: propuestas.filter((p) => p.estado === "rechazada").map((p) => ({ titulo: p.titulo, motivo: p.motivoDecision, rompe: p.rompe })),
           propuestasPrevias: estado.propuestasVivas.length,
         }),
       });
@@ -145,7 +147,8 @@ export function Auditor({ historial }: { historial: HistorialCliente }) {
             activa={activa}
             umbrales={umbrales}
             onDecidir={onDecidir}
-            onRevertirVersion={(v) => actualizar((s) => ({ ...s, reglasActiva: v }))}
+            onRevertirVersion={(v) => actualizar((s) => ({ ...s, reglasActiva: v, revertidas: [...new Set([...s.revertidas, versionActiva(historial, s).v])] }))}
+            revertidas={estado.revertidas}
             onEjecutarLoop={onEjecutarLoop}
             ejecutando={ejecutando}
             errorLoop={errorLoop}

@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
-import { TypeSafeClient } from "@typesafe-ai/sdk";
+import { type Question, TypeSafeClient } from "@typesafe-ai/sdk";
 import type { Auditoria, Decision, Evento, PreguntaJev, Veredicto } from "./types";
 
 export const PREGUNTA_JEV_V1: PreguntaJev = {
   v: 1,
   fecha: "2026-08-10",
-  nota: "Criterios calibrados con la rúbrica pública del reto",
+  nota: "Criterios de la rúbrica pública del reto, más una pregunta Noul que decide qué ve una persona",
   instrucciones:
     "Un sistema de reglas de una ONG pequeña (1-2 personas) procesó este evento de la bandeja de entrada y propuso la clasificación y la acción indicadas. ¿La clasificación es adecuada al riesgo real del caso y la acción está fundamentada en el texto del evento? Respondé con una sola opción.",
   criterios: [
@@ -26,10 +26,22 @@ export const PREGUNTA_JEV_V1: PreguntaJev = {
       d: "La acción cita un dato incorrecto o que el evento no trae (importe, fecha, nombre, referencia), promete algo sin base, o es un texto genérico que no atiende lo que pide el evento.",
     },
   ],
+  adicionales: [
+    {
+      k: "requiere_persona",
+      instrucciones: "¿Este evento necesita que una persona de la ONG lo vea antes de que se actúe?",
+      criterios: {
+        true: "Sí: compromete dinero o recursos, afecta a una persona vulnerable o a un menor, trae un conflicto entre personas, una queja, un tema legal o reputacional, o le falta un dato para actuar.",
+        false: "No: es un trámite rutinario y la acción propuesta solo usa datos que están en el texto.",
+      },
+    },
+  ],
 };
 
+/** La clave depende del contenido de la pregunta: editar un criterio invalida sus veredictos. */
 export function claveCache(p: PreguntaJev, ev: Evento, d: Decision): string {
-  return createHash("sha1").update([p.v, ev.tipo, ev.texto, d.cls, d.accion].join("␟")).digest("hex").slice(0, 16);
+  const pregunta = JSON.stringify([p.instrucciones, p.criterios, p.adicionales]);
+  return createHash("sha1").update([pregunta, ev.tipo, ev.texto, d.cls, d.accion].join("␟")).digest("hex").slice(0, 16);
 }
 
 let cliente: TypeSafeClient | null = null;
@@ -40,14 +52,23 @@ function jev(): TypeSafeClient {
 }
 
 export async function auditar(p: PreguntaJev, ev: Evento, d: Decision): Promise<Auditoria> {
-  const criteria = Object.fromEntries(p.criterios.map((c) => [c.k, c.d]));
+  const questions: Record<string, Question> = {
+    veredicto: { type: "choice", instructions: p.instrucciones, criteria: Object.fromEntries(p.criterios.map((c) => [c.k, c.d])) },
+  };
+  for (const n of p.adicionales) questions[`noul_${n.k}`] = { type: "noul", instructions: n.instrucciones, criteria: n.criterios };
   const res = await jev().systemOne({
     model: "jev-latest",
     state: { tipo_evento: ev.tipo, texto_evento: ev.texto, clasificacion_propuesta: d.cls, accion_propuesta: d.accion },
-    questions: { veredicto: { type: "choice", instructions: p.instrucciones, criteria } },
+    questions,
   });
   const a = res.answers.veredicto;
-  return { v: a.choice as Veredicto, conf: Math.round(a.confidence * 100) / 100 };
+  if (a.type !== "choice") throw new Error("Jev devolvió un tipo inesperado para el veredicto");
+  const nouls: Record<string, number> = {};
+  for (const n of p.adicionales) {
+    const r = res.answers[`noul_${n.k}`];
+    if (r?.type === "noul") nouls[n.k] = Math.round(r.noul * 100) / 100;
+  }
+  return { v: a.choice as Veredicto, conf: Math.round(a.confidence * 100) / 100, nouls };
 }
 
 /** Audita en paralelo con concurrencia acotada, reutilizando la caché. Muta `cache`. */

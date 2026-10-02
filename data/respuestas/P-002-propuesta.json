@@ -1,0 +1,299 @@
+{
+  "titulo": "R6 · voluntario_baja: detectar conflictos y malos tratos antes del auto; R1 cita el último importe; R7 prepara en aprobar las consultas de donantes, informes y memorias",
+  "razonamiento": "El error más grave de la semana es un aviso de ausencia que esconde un conflicto entre voluntarios y salió en auto porque R6 solo excluía «me han tratado»; se amplía su lista de exclusión con las variantes habituales de mal trato, faltas de respeto, gritos, insultos y referencias a compañeros o responsables, de modo que esos casos caen en `humano` por defecto. R1 cita el primer importe y, cuando el donante menciona una donación anterior, el acuse automático confirma una cifra equivocada; pasar a {importe_ultimo} corrige todos los acuses con varios importes sin cambiar los que solo traen uno. El grupo más numeroso de correcciones son consultas de donantes, informes de impacto y borradores de subvención que hoy caen en `humano` por falta de regla: una regla general en `aprobar` con exclusión de quejas, reclamaciones y denuncias los acerca a lo correcto sin conceder nunca más autonomía de la debida (las consultas fiscales simples pasan de `humano` a `aprobar`, no a `auto`), y mantiene en `humano` las quejas confirmadas.",
+  "cambios": [
+    {
+      "regla": "R6",
+      "tipo": "modificar",
+      "descripcion": "Se amplía no_contiene con variantes generales de conflicto interpersonal (trato mal, maltrato, falta de respeto, gritos, insultos, humillación, discusiones, peleas, mal ambiente, menciones a compañeros, coordinación o responsables) para que esos avisos no se resuelvan en `auto` y vayan a `humano` por defecto."
+    },
+    {
+      "regla": "R1",
+      "tipo": "modificar",
+      "descripcion": "La acción y el campo requerido pasan de {importe} a {importe_ultimo}, para que el acuse cite la donación actual y no una anterior mencionada en el mismo texto."
+    },
+    {
+      "regla": "R7",
+      "tipo": "añadir",
+      "descripcion": "Nueva regla para `donante_pregunta`, `informe_impacto` y `subvencion_borrador` en `aprobar`: se prepara un borrador de respuesta o documento y una persona lo aprueba; excluye textos con quejas, reclamaciones, esperas sin respuesta, denuncias o temas legales, que siguen en `humano`."
+    }
+  ],
+  "reglas": {
+    "salvaguardas": [
+      {
+        "id": "S1",
+        "sop": "Si el texto menciona menores (niños, adolescentes, refuerzo escolar...) o una edad menor de 18 años, el evento sube como mínimo a `humano`, sea cual sea su tipo.",
+        "palabras": [
+          "niño",
+          "niña",
+          "menor de edad",
+          "menores de edad",
+          "adolescente",
+          "chaval",
+          "infancia",
+          "infantil",
+          "refuerzo escolar",
+          "apoyo escolar",
+          "deberes",
+          "peques"
+        ],
+        "palabras_exactas": [
+          "menor",
+          "menores",
+          "crio",
+          "crios",
+          "cria",
+          "crias"
+        ],
+        "edad_menor_de": 18,
+        "nivel_minimo": "humano"
+      }
+    ],
+    "reglas": [
+      {
+        "id": "R5",
+        "sop": "Si el tipo es `donante_acuse` y la donación viene con una condición de uso o una contrapartida, clasificar como `aprobar`: se prepara el acuse y una persona decide si se acepta la condición.",
+        "cuando": {
+          "tipos": [
+            "donante_acuse"
+          ],
+          "contiene_alguno": [
+            "condicion",
+            "siempre que",
+            "siempre y cuando",
+            "a cambio",
+            "contrapartida",
+            "solo si",
+            "solamente si",
+            "unicamente si",
+            "logo",
+            "publicidad",
+            "patrocin",
+            "que pongais",
+            "que pongan",
+            "que aparezca",
+            "que salga",
+            "mencion"
+          ],
+          "no_contiene": [],
+          "importe_min": null,
+          "importe_max": null
+        },
+        "entonces": {
+          "clasificacion": "aprobar",
+          "accion": "Preparado el acuse de la donación de {importe}, que incluye una condición o contrapartida, pendiente de aprobación antes de enviarlo."
+        },
+        "requiere": [
+          "importe"
+        ],
+        "si_falta_dato": "humano"
+      },
+      {
+        "id": "R1",
+        "sop": "Si el tipo es `donante_acuse` y el texto trae un importe, clasificar como `auto` y enviar el acuse citando el último importe mencionado (la donación actual).",
+        "cuando": {
+          "tipos": [
+            "donante_acuse"
+          ],
+          "contiene_alguno": [],
+          "no_contiene": [],
+          "importe_min": null,
+          "importe_max": null
+        },
+        "entonces": {
+          "clasificacion": "auto",
+          "accion": "Enviado acuse de recibo confirmando la donación de {importe_ultimo}."
+        },
+        "requiere": [
+          "importe_ultimo"
+        ],
+        "si_falta_dato": "humano"
+      },
+      {
+        "id": "R2",
+        "sop": "Si el tipo es `voluntario_alta`, clasificar como `auto`, dar de alta y enviar el calendario de turnos del día indicado.",
+        "cuando": {
+          "tipos": [
+            "voluntario_alta"
+          ],
+          "contiene_alguno": [],
+          "no_contiene": [],
+          "importe_min": null,
+          "importe_max": null
+        },
+        "entonces": {
+          "clasificacion": "auto",
+          "accion": "Dado de alta en la base de voluntarios y enviado el calendario de turnos del {dia}."
+        },
+        "requiere": [
+          "dia"
+        ],
+        "si_falta_dato": "humano"
+      },
+      {
+        "id": "R3",
+        "sop": "Si el tipo es `plazo_recordatorio`, clasificar como `auto`, anotar el cierre de la convocatoria y programar un recordatorio.",
+        "cuando": {
+          "tipos": [
+            "plazo_recordatorio"
+          ],
+          "contiene_alguno": [],
+          "no_contiene": [],
+          "importe_min": null,
+          "importe_max": null
+        },
+        "entonces": {
+          "clasificacion": "auto",
+          "accion": "Anotado el cierre de la convocatoria {referencia} el {fecha} y programado un recordatorio 72 h antes."
+        },
+        "requiere": [
+          "referencia",
+          "fecha"
+        ],
+        "si_falta_dato": "humano"
+      },
+      {
+        "id": "R4",
+        "sop": "Si el tipo es `proveedor_factura`, clasificar como `aprobar` y preparar el pago citando número de factura e importe.",
+        "cuando": {
+          "tipos": [
+            "proveedor_factura"
+          ],
+          "contiene_alguno": [],
+          "no_contiene": [],
+          "importe_min": null,
+          "importe_max": null
+        },
+        "entonces": {
+          "clasificacion": "aprobar",
+          "accion": "Preparado el pago de la factura {referencia} por {importe}, a la espera de aprobación."
+        },
+        "requiere": [
+          "referencia",
+          "importe"
+        ],
+        "si_falta_dato": "humano"
+      },
+      {
+        "id": "R6",
+        "sop": "Si el tipo es `voluntario_baja`, es un aviso de ausencia puntual con el día indicado y no habla de dejarlo del todo, de quejas, de malos tratos ni de problemas con otras personas, clasificar como `auto` y acusar recibo; si falta el día o hay señales de conflicto, `humano`.",
+        "cuando": {
+          "tipos": [
+            "voluntario_baja"
+          ],
+          "contiene_alguno": [],
+          "no_contiene": [
+            "dejo el voluntariado",
+            "dejar el voluntariado",
+            "me doy de baja",
+            "darme de baja",
+            "definitiv",
+            "para siempre",
+            "ya no voy a volver",
+            "no voy a volver",
+            "no vuelvo",
+            "queja",
+            "problema con",
+            "conflicto",
+            "malestar",
+            "incomod",
+            "acoso",
+            "me han tratado",
+            "enfad",
+            "molest",
+            "me trato",
+            "me trataron",
+            "me tratan",
+            "nos trato",
+            "trato mal",
+            "trata mal",
+            "tratan mal",
+            "tratado mal",
+            "tratada mal",
+            "muy mal",
+            "maltrat",
+            "falta de respeto",
+            "falto al respeto",
+            "faltado al respeto",
+            "faltaron al respeto",
+            "grit",
+            "insult",
+            "humill",
+            "despreci",
+            "pelea",
+            "discusion",
+            "discuti",
+            "mal ambiente",
+            "a gusto",
+            "companer",
+            "compañer",
+            "coordinador",
+            "responsable"
+          ],
+          "importe_min": null,
+          "importe_max": null
+        },
+        "entonces": {
+          "clasificacion": "auto",
+          "accion": "Anotada la ausencia del {dia} en el calendario de turnos y enviado acuse de recibo."
+        },
+        "requiere": [
+          "dia"
+        ],
+        "si_falta_dato": "humano"
+      },
+      {
+        "id": "R7",
+        "sop": "Si el tipo es `donante_pregunta`, `informe_impacto` o `subvencion_borrador` y el texto no contiene quejas, reclamaciones, esperas sin respuesta, denuncias ni temas legales, clasificar como `aprobar`: se prepara el borrador de respuesta o documento y una persona lo revisa antes de enviarlo; si hay queja o tema legal, `humano`.",
+        "cuando": {
+          "tipos": [
+            "donante_pregunta",
+            "informe_impacto",
+            "subvencion_borrador"
+          ],
+          "contiene_alguno": [],
+          "no_contiene": [
+            "queja",
+            "quejar",
+            "reclam",
+            "verguenza",
+            "nadie me contesta",
+            "nadie contesta",
+            "nadie responde",
+            "no me contestais",
+            "no me respondeis",
+            "sin respuesta",
+            "esperando",
+            "sigo sin",
+            "todavia no",
+            "aun no",
+            "inaceptable",
+            "indign",
+            "harto",
+            "harta",
+            "denuncia",
+            "abogad",
+            "demanda",
+            "judicial",
+            "devolucion",
+            "devolved",
+            "estafa",
+            "fraude"
+          ],
+          "importe_min": null,
+          "importe_max": null
+        },
+        "entonces": {
+          "clasificacion": "aprobar",
+          "accion": "Preparado un borrador de respuesta o documento a partir de la solicitud recibida, pendiente de revisión y aprobación antes de enviarlo."
+        },
+        "requiere": [],
+        "si_falta_dato": "humano"
+      }
+    ],
+    "por_defecto": {
+      "clasificacion": "humano",
+      "accion": "Sin regla aplicable: lo revisa una persona."
+    }
+  }
+}

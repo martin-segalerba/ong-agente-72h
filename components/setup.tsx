@@ -134,17 +134,25 @@ export function Setup({ version, semanas, umbrales, setUmbrales, preguntas, onGu
       </section>
 
       <section className="pila" style={{ gap: 14 }}>
-        <Cabecera eyebrow="Umbral de confianza de Jev" titulo="Cuándo pesa el veredicto, por clasificación" nivel={2} />
+        <Cabecera eyebrow="Umbral de Jev" titulo="Cuándo una decisión pasa a una persona, por clasificación" nivel={2}>
+          <span className="nota">En auto decide la pregunta Noul «requiere_persona»; en aprobar y humano, la confianza del veredicto.</span>
+        </Cabecera>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 10 }}>
           {(["humano", "aprobar", "auto"] as Clase[]).map((k) => {
             const historico = cerradas.map((s) => s.umbralCalibrado[k]);
             const rec = historico.length ? mediaMovil(historico) : umbrales[k];
             const igual = Math.abs(umbrales[k] - rec) < 0.001;
+            const ventana = cerradas.slice(-4).map((s) => s.calibracion?.[k]).filter((c) => !!c);
+            const revisados = ventana.reduce((a, c) => a + c!.revisados, 0);
+            const errores = ventana.reduce((a, c) => a + c!.errores, 0);
             return (
               <div key={k} className="card" style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
-                <span style={{ alignSelf: "flex-start" }}>
+                <div className="fila" style={{ justifyContent: "space-between", gap: 8 }}>
                   <Badge cls={k} />
-                </span>
+                  <span className="mono" style={{ fontSize: 11, color: "var(--muted-2)" }}>
+                    {k === "auto" ? "sobre requiere_persona" : "sobre el veredicto"}
+                  </span>
+                </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
                     <div className="eyebrow-sm">Actual</div>
@@ -164,7 +172,7 @@ export function Setup({ version, semanas, umbrales, setUmbrales, preguntas, onGu
                   <div className="fila mono" style={{ gap: 10, fontSize: 11, color: "var(--muted-2)", flexWrap: "wrap" }}>
                     {ultimas.map((s) => (
                       <span key={s.id}>
-                        {s.id} <span style={{ color: "var(--muted)" }}>{f2(s.umbralCalibrado[k])}</span>
+                        {s.id} <span style={{ color: "var(--muted)" }}>{s.calibracion?.[k] ? `${f2(s.calibracion[k]!.t)} (${s.calibracion[k]!.errores}/${s.calibracion[k]!.revisados})` : "—"}</span>
                       </span>
                     ))}
                   </div>
@@ -173,7 +181,15 @@ export function Setup({ version, semanas, umbrales, setUmbrales, preguntas, onGu
                   </button>
                 </div>
                 <div className="nota-sm" style={{ marginTop: -6 }}>
-                  Recomendado = media móvil de las últimas 4 semanas de ejecuciones.
+                  Recomendado = media móvil de las últimas 4 semanas de ejecuciones.{" "}
+                  {ventana.length ? (
+                    <span style={{ color: errores < 10 ? "var(--humano)" : undefined }}>
+                      Basado en {revisados} revisiones con {errores} {errores === 1 ? "error" : "errores"}
+                      {errores < 10 ? ": pocos casos, tomalo como orientativo." : "."}
+                    </span>
+                  ) : (
+                    "Sin errores revisados con los que calibrar: se mantiene el actual."
+                  )}
                 </div>
               </div>
             );
@@ -190,13 +206,20 @@ function EditorJev({ preguntas, onGuardar }: { preguntas: PreguntaJev[]; onGuard
   const activa = preguntas[0];
   const [instr, setInstr] = useState(activa.instrucciones);
   const [crit, setCrit] = useState(activa.criterios);
+  const [noul, setNoul] = useState(activa.adicionales ?? []);
   const [nota, setNota] = useState("");
   const [guardado, setGuardado] = useState(false);
   useEffect(() => {
     setInstr(activa.instrucciones);
     setCrit(activa.criterios);
+    setNoul(activa.adicionales ?? []);
   }, [activa]);
-  const sucio = instr !== activa.instrucciones || JSON.stringify(crit) !== JSON.stringify(activa.criterios);
+  const sucio =
+    instr !== activa.instrucciones || JSON.stringify(crit) !== JSON.stringify(activa.criterios) || JSON.stringify(noul) !== JSON.stringify(activa.adicionales ?? []);
+  const updNoul = (i: number, p: Partial<PreguntaJev["adicionales"][number]>) => {
+    setNoul((xs) => xs.map((x, j) => (j === i ? { ...x, ...p } : x)));
+    setGuardado(false);
+  };
   const upd = (i: number, p: Partial<{ k: string; d: string }>) => {
     setCrit((c) => c.map((x, j) => (j === i ? { ...x, ...p } : x)));
     setGuardado(false);
@@ -234,6 +257,33 @@ function EditorJev({ preguntas, onGuardar }: { preguntas: PreguntaJev[]; onGuard
               + añadir criterio
             </button>
           </div>
+          <div className="pila" style={{ padding: "0 16px 16px", gap: 10, borderTop: "1px solid var(--line-soft)", paddingTop: 14 }}>
+            <span className="mono" style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.06em", color: "var(--muted)" }}>
+              preguntas noul · probabilidad de sí, en la misma llamada
+            </span>
+            {noul.map((n, i) => (
+              <div key={i} className="pila" style={{ gap: 6, background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 3, padding: 10 }}>
+                <div className="fila" style={{ gap: 6 }}>
+                  <input className="input mono" value={n.k} onChange={(e) => updNoul(i, { k: e.target.value })} style={{ fontSize: 12.5, fontWeight: 500, width: 230 }} aria-label="Clave de la pregunta" />
+                  {n.k === "requiere_persona" && <span className="nota-sm">decide qué auto ve una persona</span>}
+                  <button type="button" title="Quitar pregunta" className="btn btn-quiet" style={{ height: 34, padding: "0 10px", marginLeft: "auto" }} onClick={() => setNoul((xs) => xs.filter((_, j) => j !== i))}>
+                    ×
+                  </button>
+                </div>
+                <input className="input" value={n.instrucciones} onChange={(e) => updNoul(i, { instrucciones: e.target.value })} style={{ fontSize: 13 }} aria-label="Pregunta" />
+                <input className="input" value={n.criterios.true} onChange={(e) => updNoul(i, { criterios: { ...n.criterios, true: e.target.value } })} style={{ fontSize: 13 }} aria-label="Cuándo es sí" title={n.criterios.true} />
+                <input className="input" value={n.criterios.false} onChange={(e) => updNoul(i, { criterios: { ...n.criterios, false: e.target.value } })} style={{ fontSize: 13 }} aria-label="Cuándo es no" title={n.criterios.false} />
+              </div>
+            ))}
+            <button
+              type="button"
+              className="btn btn-quiet"
+              style={{ alignSelf: "flex-start", borderStyle: "dashed" }}
+              onClick={() => setNoul((xs) => [...xs, { k: "nueva_pregunta", instrucciones: "", criterios: { true: "", false: "" } }])}
+            >
+              + añadir pregunta noul
+            </button>
+          </div>
           {sucio && (
             <div className="pila" style={{ padding: "0 16px 12px", gap: 6 }}>
               <input className="input" value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Qué cambia en esta versión (opcional)" style={{ fontSize: 13 }} />
@@ -243,7 +293,7 @@ function EditorJev({ preguntas, onGuardar }: { preguntas: PreguntaJev[]; onGuard
             <span className="mono" style={{ fontSize: 12, color: sucio ? "var(--accent)" : "var(--muted-2)" }}>
               {guardado ? `Guardado como v${activa.v}` : sucio ? "Cambios sin guardar" : `Sin cambios · v${activa.v}`}
             </span>
-            <button type="button" className="btn btn-quiet" style={{ marginLeft: "auto", height: 30 }} disabled={!sucio} onClick={() => (setInstr(activa.instrucciones), setCrit(activa.criterios))}>
+            <button type="button" className="btn btn-quiet" style={{ marginLeft: "auto", height: 30 }} disabled={!sucio} onClick={() => (setInstr(activa.instrucciones), setCrit(activa.criterios), setNoul(activa.adicionales ?? []))}>
               Descartar
             </button>
             <button
@@ -252,7 +302,7 @@ function EditorJev({ preguntas, onGuardar }: { preguntas: PreguntaJev[]; onGuard
               style={{ height: 30 }}
               disabled={!sucio || crit.length < 2}
               onClick={() => {
-                onGuardar({ instrucciones: instr, criterios: crit, nota: nota || "Edición manual en Setup" });
+                onGuardar({ instrucciones: instr, criterios: crit, adicionales: noul.filter((n) => n.k && n.instrucciones), nota: nota || "Edición manual en Setup" });
                 setNota("");
                 setGuardado(true);
               }}

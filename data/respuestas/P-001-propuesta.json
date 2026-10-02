@@ -1,0 +1,224 @@
+{
+  "titulo": "S1 · menores siempre a `humano`; R5 · donaciones con condición a `aprobar`; R6 · ausencias puntuales de voluntarios en `auto`",
+  "razonamiento": "El error más grave de la semana es de exceso de autonomía: un alta de voluntariado para trabajar directamente con niños se resolvió en auto, y una donación con contrapartida se acusó en automático, comprometiendo a la ONG sin que nadie lo decidiera. Una salvaguarda general por menores (vocabulario habitual y edad declarada menor de 18) y una regla previa a R1 que detecta condiciones o contrapartidas en las donaciones corrigen esas dos familias de casos sin tocar los acuses simples ni las facturas confirmadas. En el otro sentido, el patrón más repetido entre las correcciones son avisos de ausencia puntual de voluntarios con el día indicado, que hoy caen en humano por falta de regla; R6 los acusa en auto solo si el texto trae el día y excluye bajas definitivas, quejas o problemas. Quedan para otra semana las consultas de donantes que piden cifras propias y los borradores de informes y subvenciones, que hoy van a humano (error hacia menos autonomía, más barato)."
+,
+  "cambios": [
+    {
+      "regla": "S1",
+      "tipo": "añadir",
+      "descripcion": "Salvaguarda global: si el texto menciona menores (niños, adolescentes, refuerzo o apoyo escolar, etc.) o una edad menor de 18, la clasificación sube a `humano`."
+    },
+    {
+      "regla": "R5",
+      "tipo": "añadir",
+      "descripcion": "Nueva regla antes de R1: `donante_acuse` que trae una condición de uso o contrapartida (condición, a cambio, logo, publicidad, patrocinio, solo si...) pasa a `aprobar` con el acuse preparado pero no enviado."
+    },
+    {
+      "regla": "R6",
+      "tipo": "añadir",
+      "descripcion": "Nueva regla: `voluntario_baja` con el día indicado y sin señales de baja definitiva, queja o problema se resuelve en `auto` anotando la ausencia y acusando recibo."
+    }
+  ],
+  "reglas": {
+    "salvaguardas": [
+      {
+        "id": "S1",
+        "sop": "Si el texto menciona menores (niños, adolescentes, refuerzo escolar...) o una edad menor de 18 años, el evento sube como mínimo a `humano`, sea cual sea su tipo.",
+        "palabras": [
+          "niño",
+          "niña",
+          "menor de edad",
+          "menores de edad",
+          "adolescente",
+          "chaval",
+          "infancia",
+          "infantil",
+          "refuerzo escolar",
+          "apoyo escolar",
+          "deberes",
+          "peques"
+        ],
+        "palabras_exactas": [
+          "menor",
+          "menores",
+          "crio",
+          "crios",
+          "cria",
+          "crias"
+        ],
+        "edad_menor_de": 18,
+        "nivel_minimo": "humano"
+      }
+    ],
+    "reglas": [
+      {
+        "id": "R5",
+        "sop": "Si el tipo es `donante_acuse` y la donación viene con una condición de uso o una contrapartida, clasificar como `aprobar`: se prepara el acuse y una persona decide si se acepta la condición.",
+        "cuando": {
+          "tipos": [
+            "donante_acuse"
+          ],
+          "contiene_alguno": [
+            "condicion",
+            "siempre que",
+            "siempre y cuando",
+            "a cambio",
+            "contrapartida",
+            "solo si",
+            "solamente si",
+            "unicamente si",
+            "logo",
+            "publicidad",
+            "patrocin",
+            "que pongais",
+            "que pongan",
+            "que aparezca",
+            "que salga",
+            "mencion"
+          ],
+          "no_contiene": [],
+          "importe_min": null,
+          "importe_max": null
+        },
+        "entonces": {
+          "clasificacion": "aprobar",
+          "accion": "Preparado el acuse de la donación de {importe}, que incluye una condición o contrapartida, pendiente de aprobación antes de enviarlo."
+        },
+        "requiere": [
+          "importe"
+        ],
+        "si_falta_dato": "humano"
+      },
+      {
+        "id": "R1",
+        "sop": "Si el tipo es `donante_acuse` y el texto trae un importe, clasificar como `auto` y enviar el acuse citando el importe.",
+        "cuando": {
+          "tipos": [
+            "donante_acuse"
+          ],
+          "contiene_alguno": [],
+          "no_contiene": [],
+          "importe_min": null,
+          "importe_max": null
+        },
+        "entonces": {
+          "clasificacion": "auto",
+          "accion": "Enviado acuse de recibo confirmando la donación de {importe}."
+        },
+        "requiere": [
+          "importe"
+        ],
+        "si_falta_dato": "humano"
+      },
+      {
+        "id": "R2",
+        "sop": "Si el tipo es `voluntario_alta`, clasificar como `auto`, dar de alta y enviar el calendario de turnos del día indicado.",
+        "cuando": {
+          "tipos": [
+            "voluntario_alta"
+          ],
+          "contiene_alguno": [],
+          "no_contiene": [],
+          "importe_min": null,
+          "importe_max": null
+        },
+        "entonces": {
+          "clasificacion": "auto",
+          "accion": "Dado de alta en la base de voluntarios y enviado el calendario de turnos del {dia}."
+        },
+        "requiere": [
+          "dia"
+        ],
+        "si_falta_dato": "humano"
+      },
+      {
+        "id": "R3",
+        "sop": "Si el tipo es `plazo_recordatorio`, clasificar como `auto`, anotar el cierre de la convocatoria y programar un recordatorio.",
+        "cuando": {
+          "tipos": [
+            "plazo_recordatorio"
+          ],
+          "contiene_alguno": [],
+          "no_contiene": [],
+          "importe_min": null,
+          "importe_max": null
+        },
+        "entonces": {
+          "clasificacion": "auto",
+          "accion": "Anotado el cierre de la convocatoria {referencia} el {fecha} y programado un recordatorio 72 h antes."
+        },
+        "requiere": [
+          "referencia",
+          "fecha"
+        ],
+        "si_falta_dato": "humano"
+      },
+      {
+        "id": "R4",
+        "sop": "Si el tipo es `proveedor_factura`, clasificar como `aprobar` y preparar el pago citando número de factura e importe.",
+        "cuando": {
+          "tipos": [
+            "proveedor_factura"
+          ],
+          "contiene_alguno": [],
+          "no_contiene": [],
+          "importe_min": null,
+          "importe_max": null
+        },
+        "entonces": {
+          "clasificacion": "aprobar",
+          "accion": "Preparado el pago de la factura {referencia} por {importe}, a la espera de aprobación."
+        },
+        "requiere": [
+          "referencia",
+          "importe"
+        ],
+        "si_falta_dato": "humano"
+      },
+      {
+        "id": "R6",
+        "sop": "Si el tipo es `voluntario_baja`, es un aviso de ausencia puntual con el día indicado y no habla de dejarlo del todo, de quejas ni de problemas, clasificar como `auto` y acusar recibo; si falta el día, `humano`.",
+        "cuando": {
+          "tipos": [
+            "voluntario_baja"
+          ],
+          "contiene_alguno": [],
+          "no_contiene": [
+            "dejo el voluntariado",
+            "dejar el voluntariado",
+            "me doy de baja",
+            "darme de baja",
+            "definitiv",
+            "para siempre",
+            "ya no voy a volver",
+            "no voy a volver",
+            "no vuelvo",
+            "queja",
+            "problema con",
+            "conflicto",
+            "malestar",
+            "incomod",
+            "acoso",
+            "me han tratado",
+            "enfad",
+            "molest"
+          ],
+          "importe_min": null,
+          "importe_max": null
+        },
+        "entonces": {
+          "clasificacion": "auto",
+          "accion": "Anotada la ausencia del {dia} en el calendario de turnos y enviado acuse de recibo."
+        },
+        "requiere": [
+          "dia"
+        ],
+        "si_falta_dato": "humano"
+      }
+    ],
+    "por_defecto": {
+      "clasificacion": "humano",
+      "accion": "Sin regla aplicable: lo revisa una persona."
+    }
+  }
+}

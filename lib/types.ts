@@ -52,6 +52,8 @@ export interface Decision {
 export interface Auditoria {
   v: Veredicto;
   conf: number;
+  /** Probabilidad de "sí" de cada pregunta Noul adicional, por clave. */
+  nouls: Record<string, number>;
 }
 
 export type TipoRevision = "aprobado" | "rechazado" | "revertido" | "confirmado" | "gestionado";
@@ -60,7 +62,8 @@ export interface Revision {
   tipo: TipoRevision;
   objetivo: Clase | null;
   motivo: string;
-  por: "simulado" | "usuario";
+  /** "implicito": la semana cerró con revisiones y este evento quedó sin tocar; se asume correcto. */
+  por: "simulado" | "usuario" | "implicito";
   clsOriginal: Clase;
   accionOriginal: string;
 }
@@ -84,14 +87,20 @@ export type Umbrales = Record<Clase, number>;
 
 export interface Metricas {
   eventos: number;
+  /** Veredictos de Jev sumando su confianza: un veredicto con 0,3 pesa 0,3, no 1. */
   veredictos: Record<Veredicto, number>;
+  veredictosConteo: Record<Veredicto, number>;
   sobreUmbral: number;
   clases: Record<Clase, number>;
   sinPersona: number;
   reversionesReproducidas: number;
   reversionesTotales: number;
   confirmadasRotas: number;
+  implicitasQueCambian: number;
+  /** Contra la etiqueta sintética, en los mismos textos de los que aprende el loop. */
   precisionVerdad?: number;
+  /** Contra la etiqueta sintética, en paráfrasis que el loop nunca vio. */
+  precisionNueva?: number;
 }
 
 export interface CambioPropuesto {
@@ -111,6 +120,15 @@ export interface Ejemplo {
 
 export type EstadoPropuesta = "pendiente" | "aprobada" | "rechazada";
 
+export interface Uso {
+  modelo: string;
+  /** "api": llamada pagada a la API de Anthropic; "sesion": respuesta grabada de un subagente de Claude Code, sin costo de API. */
+  via: "api" | "sesion";
+  entrada: number;
+  salida: number;
+  costoUSD: number;
+}
+
 export interface Propuesta {
   id: string;
   fecha: string;
@@ -124,8 +142,11 @@ export interface Propuesta {
   metricasAntes: Metricas;
   metricasDespues: Metricas;
   cambiados: number;
+  /** Decisiones confirmadas por una persona que esta propuesta cambia (lo que se le señala si se rechaza). */
+  rompe: { tipo: string; texto: string; confirmada: Clase; propuesta: Clase }[];
   ejemplos: Ejemplo[];
-  revisionOpus: { mejora: boolean; porQue: string; riesgos: string };
+  revision: { modelo: string; mejora: boolean; porQue: string; riesgos: string };
+  uso: { propuesta: Uso; revision: Uso; costoUSD: number };
   estado: EstadoPropuesta;
   decididaPor: "simulado" | "usuario" | null;
   motivoDecision: string;
@@ -139,12 +160,25 @@ export interface VersionReglas {
   reglas: Reglas;
 }
 
+export interface PreguntaNoul {
+  k: string;
+  instrucciones: string;
+  criterios: { true: string; false: string };
+}
+
 export interface PreguntaJev {
   v: number;
   fecha: string;
   nota: string;
   instrucciones: string;
   criterios: { k: string; d: string }[];
+  adicionales: PreguntaNoul[];
+}
+
+export interface Calibracion {
+  t: number;
+  revisados: number;
+  errores: number;
 }
 
 export interface Semana {
@@ -155,13 +189,16 @@ export interface Semana {
   reglasVersion: number;
   umbrales: Umbrales;
   umbralCalibrado: Umbrales;
+  /** Con cuántos casos se calibró el umbral de esa semana; null si no hubo con qué. */
+  calibracion: Record<Clase, Calibracion | null>;
   metricas: Metricas;
   enCurso: boolean;
 }
 
 export interface Historial {
   generado: string;
-  modeloOpus: string;
+  modeloPropuesta: string;
+  modeloRevision: string;
   modeloJev: string;
   semanas: Semana[];
   eventos: EventoProcesado[];
