@@ -6,7 +6,7 @@
  * con `// activa #2`.
  */
 import { describe, expect, it } from "vitest";
-import { NOUL_SENAL, senalFuerte, UMBRALES_INICIALES } from "../lib/metricas";
+import { NOUL_SENAL, puntajeSenal, senalFuerte, UMBRALES_INICIALES } from "../lib/metricas";
 import type { Decision } from "../lib/types";
 import { auditoria } from "./casos";
 
@@ -31,10 +31,19 @@ describe("senalFuerte · lo que ya anda", () => {
   });
 });
 
-describe("senalFuerte · regresión pendiente (skip hasta su fix)", () => {
+describe("senalFuerte · ausencia de señal exige revisión (#2)", () => {
   // activa #2 — si falta la señal del auditor en un `auto`, hay que ELEVAR, no asumir que es seguro.
-  it.skip("en auto sin señal del auditor, se marca para revisión", () => {
+  it("en auto sin señal del auditor, se marca para revisión", () => {
     const sinSenal = auditoria("correcta", 0.9, {}); // no trae la Noul 'requiere_persona'
     expect(senalFuerte(decision("auto"), sinSenal, u)).toBe(true);
+  });
+
+  it("la ausencia no se confunde con un puntaje medido: puntajeSenal devuelve null, no 0", () => {
+    const sinSenal = auditoria("correcta", 0.9, {});
+    const medidoBajo = auditoria("correcta", 0.9, { [NOUL_SENAL]: 0 });
+    expect(puntajeSenal(decision("auto"), sinSenal)).toBeNull();
+    // Un 0 realmente medido sí es un número (y no eleva, es señal débil real).
+    expect(puntajeSenal(decision("auto"), medidoBajo)).toBe(0);
+    expect(senalFuerte(decision("auto"), medidoBajo, u)).toBe(false);
   });
 });
