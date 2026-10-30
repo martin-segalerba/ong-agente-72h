@@ -2,6 +2,7 @@ import { decidir, validarReglas } from "./engine";
 import { auditarLote } from "./jev";
 import { type Fila, calcularMetricas, esCorrectiva, precisionContra, reproduce, rompeConfirmada, senalFuerte } from "./metricas";
 import { type Evidencia, proponer, revisar } from "./opus";
+import { type ResultadoTransicion, validarTransicion } from "./transicion";
 import type { Auditoria, Decision, Evento, EventoProcesado, Metricas, PreguntaJev, Propuesta, Reglas, Umbrales, Uso, Verdad } from "./types";
 
 export interface EntradaLoop {
@@ -173,24 +174,12 @@ export async function ejecutarLoop(e: EntradaLoop): Promise<Propuesta | null> {
   };
 }
 
-/** Margen para «demasiado_atrevida» ponderado: medio veredicto seguro de diferencia es ruido. */
-const TOLERANCIA_ATREVIDA = 0.5;
-
-/** Criterio con el que la persona simulada aprueba o rechaza: solo números, no la narrativa del modelo. */
-export function decisionSimulada(p: Propuesta): { aprobar: boolean; motivo: string } {
-  const a = p.metricasAntes;
-  const d = p.metricasDespues;
-  const fallos: string[] = [];
-  if (!p.revision.mejora) fallos.push("la revisión no encuentra mejora");
-  if (d.veredictos.demasiado_atrevida > a.veredictos.demasiado_atrevida + TOLERANCIA_ATREVIDA)
-    fallos.push(`sube «demasiado_atrevida» ponderado (${a.veredictos.demasiado_atrevida} → ${d.veredictos.demasiado_atrevida})`);
-  if (d.confirmadasRotas > a.confirmadasRotas) fallos.push(`cambia ${d.confirmadasRotas - a.confirmadasRotas} decisiones que una persona confirmó`);
-  if (d.reversionesReproducidas < a.reversionesReproducidas) fallos.push("reproduce menos correcciones humanas");
-  if (d.veredictos.correcta < a.veredictos.correcta - TOLERANCIA_ATREVIDA) fallos.push(`baja «correcta» ponderado (${a.veredictos.correcta} → ${d.veredictos.correcta})`);
-  return fallos.length
-    ? { aprobar: false, motivo: `Rechazada: ${fallos.join("; ")}.` }
-    : {
-        aprobar: true,
-        motivo: `Aprobada: reproduce ${d.reversionesReproducidas}/${d.reversionesTotales} correcciones (antes ${a.reversionesReproducidas}), «correcta» ponderado ${a.veredictos.correcta} → ${d.veredictos.correcta}, sin cambiar decisiones confirmadas.`,
-      };
+/**
+ * Criterio con el que la persona simulada aprueba o rechaza: solo números, no la narrativa del
+ * modelo. Es la MISMA barrera que aplica el botón de aprobar de la UI (`validarTransicion`): en el
+ * simulador la propuesta siempre se arma sobre la versión activa, así que ese chequeo es trivial y
+ * lo que decide son los cinco criterios de métricas.
+ */
+export function decisionSimulada(p: Propuesta): ResultadoTransicion {
+  return validarTransicion(p, { versionActiva: p.baseVersion });
 }

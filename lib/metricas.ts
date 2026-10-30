@@ -67,19 +67,43 @@ export function esExplicita(r: Revision | null): r is Revision {
   return !!r && r.por !== "implicito";
 }
 
+/**
+ * Normaliza el texto de una acción para comparar CONTENIDO, no forma: ignora mayúsculas, espacios
+ * repetidos y la puntuación de borde. Dos acciones que solo difieren en eso son la misma acción.
+ */
+export function accionNormalizada(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[.;:,!¡¿?…\s]+$/g, "");
+}
+
+/** ¿El contenido de la acción cambió de verdad (no solo mayúsculas/espacios/puntuación de borde)? */
+export function accionCambia(a: string, b: string): boolean {
+  return accionNormalizada(a) !== accionNormalizada(b);
+}
+
 /** ¿La decisión `d` hace lo que pidió la persona que revisó el evento? */
 export function reproduce(r: Revision, d: Decision): boolean {
   if (r.tipo === "revertido") return d.cls === r.objetivo;
   if (r.tipo === "rechazado") {
     if (d.cls !== r.clsOriginal) return NIVEL[d.cls] > NIVEL[r.clsOriginal];
-    return d.accion !== r.accionOriginal;
+    // Misma clase: solo cuenta como corrección si el contenido de la acción cambió de verdad. Un
+    // retoque de formato (mayúsculas, espacios) no resuelve el rechazo.
+    return accionCambia(d.accion, r.accionOriginal);
   }
   return false;
 }
 
-/** Una decisión que una persona confirmó de verdad y que la regla nueva cambia. Las implícitas no cuentan. */
+/**
+ * Una decisión que una persona confirmó de verdad y que la regla nueva cambia. Cuenta como regresión
+ * tanto si cambia la CLASE como si conserva la clase pero cambia el CONTENIDO de la acción: la
+ * persona confirmó esa acción, no solo su clasificación. Las implícitas no cuentan.
+ */
 export function rompeConfirmada(r: Revision, d: Decision): boolean {
-  return esExplicita(r) && !esCorrectiva(r) && d.cls !== r.clsOriginal;
+  if (!esExplicita(r) || esCorrectiva(r)) return false;
+  return d.cls !== r.clsOriginal || accionCambia(d.accion, r.accionOriginal);
 }
 
 export function aciertaVerdad(d: Decision, v: Verdad): boolean {

@@ -6,11 +6,11 @@
  * con `// activa #2`.
  */
 import { describe, expect, it } from "vitest";
-import { NOUL_SENAL, puntajeSenal, senalFuerte, UMBRALES_INICIALES } from "../lib/metricas";
-import type { Decision } from "../lib/types";
+import { NOUL_SENAL, puntajeSenal, reproduce, rompeConfirmada, senalFuerte, UMBRALES_INICIALES } from "../lib/metricas";
+import type { Decision, Revision } from "../lib/types";
 import { auditoria } from "./casos";
 
-const decision = (cls: Decision["cls"]): Decision => ({ cls, regla: "R-test", accion: "—", motivos: [] });
+const decision = (cls: Decision["cls"], accion = "—"): Decision => ({ cls, regla: "R-test", accion, motivos: [] });
 const u = UMBRALES_INICIALES;
 
 describe("senalFuerte · lo que ya anda", () => {
@@ -45,5 +45,71 @@ describe("senalFuerte · ausencia de señal exige revisión (#2)", () => {
     // Un 0 realmente medido sí es un número (y no eleva, es señal débil real).
     expect(puntajeSenal(decision("auto"), medidoBajo)).toBe(0);
     expect(senalFuerte(decision("auto"), medidoBajo, u)).toBe(false);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Issue #6 — `rompeConfirmada`/`reproduce` miran el CONTENIDO de la acción, no solo la clase.
+// ─────────────────────────────────────────────────────────────────────────────
+const confirmada = (cls: Revision["clsOriginal"], accion: string): Revision => ({
+  tipo: "confirmado",
+  objetivo: null,
+  motivo: "la persona confirmó esta decisión",
+  por: "usuario",
+  clsOriginal: cls,
+  accionOriginal: accion,
+});
+
+const rechazada = (cls: Revision["clsOriginal"], accion: string, objetivo: Revision["objetivo"] = null): Revision => ({
+  tipo: "rechazado",
+  objetivo,
+  motivo: "la persona rechazó la acción",
+  por: "usuario",
+  clsOriginal: cls,
+  accionOriginal: accion,
+});
+
+describe("rompeConfirmada · el contenido importa, no solo la clase (#6)", () => {
+  it("conserva la clase pero cambia el TEXTO de una acción confirmada → es regresión", () => {
+    const r = confirmada("auto", "Enviar acuse de 50 €");
+    const d = decision("auto", "Enviar acuse de 100 €");
+    expect(rompeConfirmada(r, d)).toBe(true);
+  });
+
+  it("misma clase y mismo contenido → no es regresión", () => {
+    const r = confirmada("auto", "Enviar acuse de 50 €");
+    expect(rompeConfirmada(r, decision("auto", "Enviar acuse de 50 €"))).toBe(false);
+  });
+
+  it("un cambio de clase sigue contando como regresión", () => {
+    const r = confirmada("auto", "Enviar acuse de 50 €");
+    expect(rompeConfirmada(r, decision("humano", "Enviar acuse de 50 €"))).toBe(true);
+  });
+
+  it("un retoque de formato (mayúsculas/espacios) NO cuenta como regresión", () => {
+    const r = confirmada("auto", "Enviar acuse de 50 €");
+    expect(rompeConfirmada(r, decision("auto", "  ENVIAR   acuse de 50 €.  "))).toBe(false);
+  });
+
+  it("una revisión implícita no cuenta aunque cambie el contenido", () => {
+    const implicita: Revision = { ...confirmada("auto", "Enviar acuse de 50 €"), por: "implicito" };
+    expect(rompeConfirmada(implicita, decision("auto", "Enviar acuse de 999 €"))).toBe(false);
+  });
+});
+
+describe("reproduce · un cambio trivial no resuelve un rechazo (#6)", () => {
+  it("misma clase, el contenido cambia de verdad → corrige el rechazo", () => {
+    const r = rechazada("auto", "Enviar acuse de 50 €");
+    expect(reproduce(r, decision("auto", "Derivar a una persona el reclamo"))).toBe(true);
+  });
+
+  it("misma clase, solo cambia el formato → NO corrige el rechazo", () => {
+    const r = rechazada("auto", "Enviar acuse de 50 €");
+    expect(reproduce(r, decision("auto", "enviar acuse de 50 €"))).toBe(false);
+  });
+
+  it("si sube de nivel la clase, corrige aunque el texto sea igual", () => {
+    const r = rechazada("auto", "Enviar acuse");
+    expect(reproduce(r, decision("humano", "Enviar acuse"))).toBe(true);
   });
 });

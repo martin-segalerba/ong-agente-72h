@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { diffLineas, jsonLineas, sopLineas } from "@/lib/diff";
+import { validarTransicion } from "@/lib/transicion";
 import type { Ejemplo, Metricas, Propuesta, Semana, Umbrales, VersionReglas } from "@/lib/types";
 import { Evolucion } from "./evolucion";
 import { tokens } from "./setup";
@@ -142,7 +143,9 @@ export function Mejoras({ semanas, propuestas, versiones, activa, umbrales, onDe
   const idxActiva = versiones.findIndex((v) => v.v === activa.v);
   const anterior = versiones[idxActiva + 1];
   const siguienteV = Math.max(...versiones.map((v) => v.v)) + 1;
-  const baseVieja = !!p && p.baseVersion !== activa.v;
+  // La MISMA barrera que el simulador: si no aprueba, el botón se desactiva y se muestran los motivos.
+  const transicion = p ? validarTransicion(p, { versionActiva: activa.v }) : null;
+  const puedeAprobar = !!transicion?.aprobar;
 
   return (
     <div className="pila" style={{ gap: 22 }}>
@@ -281,14 +284,14 @@ export function Mejoras({ semanas, propuestas, versiones, activa, umbrales, onDe
                 <button type="button" className="btn btn-lg" style={{ marginLeft: "auto" }} onClick={() => onDecidir(p, false)}>
                   Rechazar
                 </button>
-                <button type="button" className="btn btn-primary btn-lg" disabled={baseVieja} onClick={() => onDecidir(p, true)}>
+                <button type="button" className="btn btn-primary btn-lg" disabled={!puedeAprobar} onClick={() => onDecidir(p, true)}>
                   Aprobar y aplicar como v{siguienteV}
                 </button>
               </>
             )}
-            {p.estado === "pendiente" && baseVieja && (
+            {p.estado === "pendiente" && transicion && !puedeAprobar && (
               <span className="mono" style={{ flexBasis: "100%", fontSize: 12, color: ST.humano.c, textAlign: "right" }}>
-                Armada sobre v{p.baseVersion}; las reglas activas son v{activa.v}. Ejecutá el loop sobre la versión activa para tener una propuesta comparable.
+                No se puede aprobar: {transicion.fallos.join("; ")}. Es la misma barrera que aplica el simulador.
               </span>
             )}
           </div>
@@ -309,7 +312,7 @@ export function Mejoras({ semanas, propuestas, versiones, activa, umbrales, onDe
         </div>
         {ejecutando && <span className="mono" style={{ fontSize: 12, color: "var(--accent)" }}>{ejecutando}</span>}
         {!loopHabilitado && (
-          <span className="nota-sm">Desactivado en este despliegue. Las propuestas de arriba se generaron con llamadas reales a Opus y a Jev; para ejecutarlo en vivo hacen falta las claves y LOOP_EN_VIVO=1.</span>
+          <span className="nota-sm">Desactivado en este despliegue. Las propuestas de arriba se generaron con llamadas reales a Opus y a Jev; para ejecutarlo en vivo hacen falta las claves de API, LOOP_CLAVE y LOOP_EN_VIVO=1.</span>
         )}
         {errorLoop && <span className="mono" style={{ fontSize: 12, color: ST.humano.c }}>{errorLoop}</span>}
       </section>
