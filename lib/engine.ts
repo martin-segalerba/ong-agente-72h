@@ -1,3 +1,4 @@
+import { SALVAGUARDAS_INMUTABLES } from "./salvaguardas-inmutables";
 import { type Clase, type Decision, type Evento, NIVEL, type Regla, type Reglas } from "./types";
 
 const DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
@@ -14,7 +15,28 @@ const MESES_N = MESES.map(normalizar);
 const RE_IMPORTE = /(?:\$\s?(\d[\d.,]*))|(\d[\d.,]*)\s?(?:€|euros?\b|eur\b)/gi;
 const RE_REF = /\b[A-ZÑ]{2,8}-?\d{2,6}\b/;
 const RE_FECHA = new RegExp(`\\b(\\d{1,2})\\s+de\\s+(${MESES_N.join("|")})\\b|\\b(\\d{1,2})/(\\d{1,2})\\b|\\b(${DIAS_N.join("|")})\\b`, "g");
-const RE_EDAD = /\b(\d{1,2})\s*años\b/g;
+// Números escritos en palabras 0–20: alcanza para edades de voluntariado (la decisión
+// abierta del issue #3). Van normalizados (sin acentos): "dieciséis" se compara como
+// "dieciseis". El orden no importa: el alternado de la regex matchea la palabra completa.
+const PALABRAS_NUMERO: Record<string, number> = {
+  cero: 0, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9,
+  diez: 10, once: 11, doce: 12, trece: 13, catorce: 14, quince: 15, dieciseis: 16,
+  diecisiete: 17, dieciocho: 18, diecinueve: 19, veinte: 20,
+};
+// Corre SIEMPRE sobre texto normalizado: "16 años", "16 AÑOS" y "dieciséis años" quedan
+// todos como "<n> anos". El flag `i` es defensivo por si se aplica a texto sin normalizar.
+const RE_EDAD = new RegExp(`\\b(${Object.keys(PALABRAS_NUMERO).join("|")}|\\d{1,2})\\s*anos?\\b`, "gi");
+
+/** Edades (en años) que aparecen en el texto, tanto en dígitos como escritas en palabras. */
+export function edades(texto: string): number[] {
+  const out: number[] = [];
+  for (const m of normalizar(texto).matchAll(RE_EDAD)) {
+    const tok = m[1];
+    const n = /^\d+$/.test(tok) ? Number(tok) : PALABRAS_NUMERO[tok];
+    if (n !== undefined) out.push(n);
+  }
+  return out;
+}
 
 function importes(texto: string): string[] {
   const out: string[] = [];
@@ -102,6 +124,7 @@ function renderizar(plantilla: string, datos: Record<string, string | null>): st
 
 export function decidir(ev: Evento, reglas: Reglas): Decision {
   const textoN = normalizar(ev.texto);
+  const edadesEv = edades(ev.texto);
   const datos: Record<string, string | null> = {};
   for (const k of CAMPOS) datos[k] = EXTRACTORES[k](ev.texto);
 
@@ -133,7 +156,8 @@ export function decidir(ev: Evento, reglas: Reglas): Decision {
   for (const s of reglas.salvaguardas) {
     let hit = contiene(textoN, s.palabras) ?? contieneExacta(textoN, s.palabras_exactas);
     if (!hit && s.edad_menor_de !== null) {
-      for (const m of ev.texto.matchAll(RE_EDAD)) if (Number(m[1]) < s.edad_menor_de) hit = m[0];
+      const menor = edadesEv.find((n) => n < s.edad_menor_de!);
+      if (menor !== undefined) hit = `${menor} años`;
     }
     if (hit && NIVEL[s.nivel_minimo] > NIVEL[cls]) {
       cls = s.nivel_minimo;
@@ -143,6 +167,28 @@ export function decidir(ev: Evento, reglas: Reglas): Decision {
           ? `Escalado a una persona por ${s.id} («${hit}»): ${s.sop}`
           : `Preparada la respuesta, pendiente de aprobación por ${s.id} («${hit}»): ${s.sop}`;
       motivos.push(`${s.id}: «${hit}»`);
+    }
+  }
+
+  // Piso INMUTABLE por contenido. Vive en código (ver lib/salvaguardas-inmutables.ts), así
+  // que el loop no lo puede quitar ni rebajar vía rules.json. Corre DESPUÉS de las reglas y
+  // de las salvaguardas de rules.json y SIEMPRE eleva (sube el nivel, nunca lo baja), sea
+  // cual sea el tipo del evento: una denuncia de acoso escondida en un acuse de donación
+  // eleva igual aunque la regla base ya haya resuelto el acuse en `auto`.
+  for (const s of SALVAGUARDAS_INMUTABLES) {
+    let hit = contiene(textoN, s.palabras);
+    if (!hit && s.edadMenorDe !== null) {
+      const menor = edadesEv.find((n) => n < s.edadMenorDe!);
+      if (menor !== undefined) hit = `${menor} años`;
+    }
+    if (hit && NIVEL[s.nivelMinimo] > NIVEL[cls]) {
+      cls = s.nivelMinimo;
+      regla = `${regla}·${s.id}`;
+      accion =
+        s.nivelMinimo === "humano"
+          ? `Escalado a una persona por salvaguarda inmutable ${s.id} («${hit}»): ${s.sop}`
+          : `Preparada la respuesta, pendiente de aprobación por salvaguarda inmutable ${s.id} («${hit}»): ${s.sop}`;
+      motivos.push(`inmutable ${s.id}: «${hit}»`);
     }
   }
 

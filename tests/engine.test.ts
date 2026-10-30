@@ -4,8 +4,12 @@
  * comentario `// activa #N`: cuando el fix aterrice, se cambia `.skip` por el test normal.
  */
 import { describe, expect, it } from "vitest";
-import { decidir, EXTRACTORES, normalizar } from "../lib/engine";
+import { decidir, edades, EXTRACTORES, normalizar } from "../lib/engine";
+import { SALVAGUARDAS_INMUTABLES } from "../lib/salvaguardas-inmutables";
+import type { Evento } from "../lib/types";
 import { DONACION_CON_DENUNCIA, DOS_FECHAS, EDAD, MULTIPLES_IMPORTES, REGLAS_BASE, REGLAS_CON_MENORES } from "./casos";
+
+const ev = (tipo: string, texto: string): Evento => ({ id: "t", t: "2026-10-01T10:00:00Z", tipo, texto });
 
 describe("normalizar", () => {
   it("pasa a minúsculas y saca los acentos", () => {
@@ -80,26 +84,77 @@ describe("decidir · casos que ya andan", () => {
   });
 });
 
-describe("decidir · regresiones pendientes (quedan en skip hasta su fix)", () => {
-  // activa #3 — la MISMA edad en MAYÚSCULAS tiene que elevar igual que en minúsculas.
-  it.skip("edad en MAYÚSCULAS eleva a humano", () => {
-    const { evento } = EDAD[1];
-    expect(decidir(evento, REGLAS_CON_MENORES).cls).toBe("humano");
+describe("#3 · edad robusta a formato (dígitos, MAYÚSCULAS y palabras)", () => {
+  it("extrae la edad en dígitos y en palabras, en cualquier caja y con acentos", () => {
+    expect(edades("Tengo 16 años")).toEqual([16]);
+    expect(edades("TENGO 16 AÑOS")).toEqual([16]);
+    expect(edades("Tengo dieciséis años")).toEqual([16]);
+    expect(edades("DISPONIBLE, TENGO DIECISIETE AÑOS")).toEqual([17]);
+    expect(edades("Gracias por todo, sin edad acá.")).toEqual([]);
   });
 
-  // activa #3 — la edad escrita en palabras («dieciséis») también es un menor.
-  it.skip("edad en palabras eleva a humano", () => {
-    const { evento } = EDAD[2];
-    expect(decidir(evento, REGLAS_CON_MENORES).cls).toBe("humano");
-  });
-
-  // activa #3 — multi-intención: una denuncia de acoso dentro de un acuse exige persona.
-  it.skip("donación con denuncia de acoso no se resuelve en auto", () => {
-    for (const { evento } of DONACION_CON_DENUNCIA) {
-      expect(decidir(evento, REGLAS_BASE).cls).toBe("humano");
+  it("todas las variantes de EDAD elevan a humano (misma frase, distinto formato)", () => {
+    for (const { evento, descripcion } of EDAD) {
+      expect(decidir(evento, REGLAS_CON_MENORES).cls, descripcion).toBe("humano");
     }
   });
 
+  it("la misma frase en minúsculas, MAYÚSCULAS y en palabras da el mismo resultado", () => {
+    const min = decidir(EDAD[0].evento, REGLAS_CON_MENORES).cls; // "16 años"
+    const may = decidir(EDAD[1].evento, REGLAS_CON_MENORES).cls; // "16 AÑOS"
+    const pal = decidir(EDAD[2].evento, REGLAS_CON_MENORES).cls; // "dieciséis años"
+    expect([may, pal]).toEqual([min, min]);
+  });
+});
+
+describe("#3 · multi-intención: una señal sensible eleva aunque la regla base ya haya actuado", () => {
+  it("donación + denuncia de acoso no recibe acuse automático (eleva a humano)", () => {
+    for (const { evento, descripcion } of DONACION_CON_DENUNCIA) {
+      const d = decidir(evento, REGLAS_BASE);
+      expect(d.cls, descripcion).toBe("humano");
+      expect(d.regla).toContain("INM-acoso");
+    }
+  });
+});
+
+describe("#3 · capa de salvaguardas INMUTABLES por contenido", () => {
+  // Partimos de un acuse de donación que SIN señal sensible resuelve en `auto` (R1 con
+  // importe) y SIN ninguna salvaguarda en rules.json (REGLAS_BASE): así se ve que la capa
+  // eleva desde código, por contenido, aunque el tipo sea "inofensivo".
+  const dispara = (texto: string) => decidir(ev("donante_acuse", texto), REGLAS_BASE);
+
+  it("menores: edad < 18 eleva; 18+ no (umbral estricto en 18)", () => {
+    expect(dispara("Doné 20 €. Tengo 17 años.").cls).toBe("humano");
+    expect(dispara("Doné 20 €. Tengo 18 años.").cls).toBe("auto");
+    expect(dispara("Doné 20 €. Tengo diecisiete años.").cls).toBe("humano");
+  });
+
+  it("acoso / denuncia / abuso eleva a humano", () => {
+    expect(dispara("Doné 20 €. Quiero denunciar un abuso de un coordinador.").regla).toContain("INM-acoso");
+    expect(dispara("Doné 20 €. Sufrí acoso en el evento.").cls).toBe("humano");
+    expect(dispara("Doné 20 €. Hubo maltrato hacia una compañera.").cls).toBe("humano");
+  });
+
+  it("conflicto entre personas eleva a humano", () => {
+    expect(dispara("Doné 20 €. Hay un conflicto entre dos voluntarios.").regla).toContain("INM-conflicto");
+    expect(dispara("Doné 20 €. Tuvimos una pelea en la sede.").cls).toBe("humano");
+  });
+
+  it("autolesión / urgencia médica / riesgo vital eleva a humano", () => {
+    expect(dispara("Doné 20 €. Un chico habló de autolesión.").regla).toContain("INM-urgencia");
+    expect(dispara("Doné 20 €. Fue una urgencia médica, no podía respirar.").cls).toBe("humano");
+  });
+
+  it("un mensaje sin ninguna señal sensible NO se eleva (no rompe el historial)", () => {
+    expect(dispara("Muchas gracias, acabo de donar 50 € este mes.").cls).toBe("auto");
+  });
+
+  it("las cuatro señales son humano (ningún borrador automático ante contenido sensible)", () => {
+    expect(SALVAGUARDAS_INMUTABLES.map((s) => s.nivelMinimo)).toEqual(["humano", "humano", "humano", "humano"]);
+  });
+});
+
+describe("decidir · regresiones pendientes (quedan en skip hasta su fix)", () => {
   // activa #4 — el acuse debe citar la donación de HOY aunque no sea el primer importe del texto.
   it.skip("con importe de hoy al final, el acuse cita 300 € y no 50 €", () => {
     const { evento } = MULTIPLES_IMPORTES[1];
