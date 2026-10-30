@@ -79,6 +79,15 @@ RESPUESTAS_DIR=data/respuestas TYPESAFE_API_KEY=... npm run simulate
 
 Sin `RESPUESTAS_DIR`, la simulación llama a la API de Anthropic (`ANTHROPIC_API_KEY`). Los modelos se cambian con `MODELO_PROPUESTA` y `MODELO_REVISION`.
 
+## Tests
+
+```bash
+npm test        # vitest run
+npm run typecheck
+```
+
+La suite ([`tests/`](tests/)) ejercita las funciones puras del motor —`normalizar`, `EXTRACTORES`, `decidir` ([`lib/engine.ts`](lib/engine.ts)) y `senalFuerte` ([`lib/metricas.ts`](lib/metricas.ts))— con fixtures de regresión en [`tests/casos.ts`](tests/casos.ts). No tocan la API ni la red: las auditorías de Jev se construyen a mano. Los casos conocidos que todavía fallan (edad en mayúsculas o en palabras, donación con denuncia, dos fechas, ausencia del auditor) quedan en `.skip` con un comentario `// activa #N` que indica qué issue de hardening los prende al cerrarse.
+
 ### Vercel
 
 El despliegue funciona tal cual. El botón **Ejecutar el loop ahora** llama a `/api/loop`, que gasta créditos de Anthropic y Jev, así que viene desactivado. Para activarlo, en las variables de entorno del proyecto:
@@ -106,3 +115,5 @@ ong/                 solución original al reto de AI For Action (Python, harnes
 ```
 
 La carpeta [`ong/`](ong/) contiene la primera versión: un pipeline de reglas en Python contra el harness público del reto ONG de AI For Action (88,0 en la semana pública, validado con el evaluador LLM). El historial de esa iteración está en [`ong/EXPERIMENTOS.md`](ong/EXPERIMENTOS.md); Auditor es lo que vino después.
+
+> **Python 3.10+** para correr lo de [`ong/`](ong/): el import usa sintaxis (p. ej. `X | None`) que falla con 3.9.
