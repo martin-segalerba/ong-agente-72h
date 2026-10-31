@@ -4,10 +4,10 @@
  * comentario `// activa #N`: cuando el fix aterrice, se cambia `.skip` por el test normal.
  */
 import { describe, expect, it } from "vitest";
-import { decidir, edades, EXTRACTORES, normalizar } from "../lib/engine";
+import { camposAmbiguos, decidir, edades, EXTRACTORES, normalizar } from "../lib/engine";
 import { SALVAGUARDAS_INMUTABLES } from "../lib/salvaguardas-inmutables";
 import type { Evento } from "../lib/types";
-import { DONACION_CON_DENUNCIA, DOS_FECHAS, EDAD, MULTIPLES_IMPORTES, REGLAS_BASE, REGLAS_CON_MENORES } from "./casos";
+import { DATO_AMBIGUO, DONACION_CON_DENUNCIA, DOS_FECHAS, EDAD, MULTIPLES_IMPORTES, REGLAS_BASE, REGLAS_CON_MENORES } from "./casos";
 
 const ev = (tipo: string, texto: string): Evento => ({ id: "t", t: "2026-10-01T10:00:00Z", tipo, texto });
 
@@ -22,7 +22,9 @@ describe("normalizar", () => {
 describe("EXTRACTORES", () => {
   const texto = "Hoy he donado 300 €, el mes pasado doné 50 €.";
 
-  it("importe toma la primera coincidencia; importe_ultimo la última", () => {
+  it("importe es el de la donación vigente (no posicional); importe_ultimo sigue siendo el último", () => {
+    // Acá el importe de HOY (300 €) además es el primero, pero `importe` lo elige por el
+    // marcador "hoy", no por la posición. `importe_ultimo` es el primitivo posicional.
     expect(EXTRACTORES.importe(texto)).toBe("300 €");
     expect(EXTRACTORES.importe_ultimo(texto)).toBe("50 €");
   });
@@ -36,9 +38,11 @@ describe("EXTRACTORES", () => {
     expect(EXTRACTORES.referencia("La convocatoria BECA-2026 cierra pronto.")).toBe("BECA-2026");
   });
 
-  it("fecha/dia devuelven la ÚLTIMA fecha o día del texto", () => {
-    // Esta es la conducta actual (posicional), la que #4 va a corregir para citar el cierre.
+  it("fecha elige el cierre por marcadores; dia sigue siendo el último día posicional", () => {
+    // #4: con dos fechas, `fecha` se queda con la del CIERRE (viernes), no con la última
+    // del texto (lunes, de la reunión). `dia` queda como primitivo posicional.
     const dosFechas = "cierra el viernes; reunión el lunes";
+    expect(EXTRACTORES.fecha(dosFechas)).toBe("viernes");
     expect(EXTRACTORES.dia(dosFechas)).toBe("lunes");
     expect(EXTRACTORES.fecha("vence el 14 de marzo")).toBe("14 de marzo");
   });
@@ -154,20 +158,64 @@ describe("#3 · capa de salvaguardas INMUTABLES por contenido", () => {
   });
 });
 
-describe("decidir · regresiones pendientes (quedan en skip hasta su fix)", () => {
-  // activa #4 — el acuse debe citar la donación de HOY aunque no sea el primer importe del texto.
-  it.skip("con importe de hoy al final, el acuse cita 300 € y no 50 €", () => {
-    const { evento } = MULTIPLES_IMPORTES[1];
-    const d = decidir(evento, REGLAS_BASE);
+describe("#4 · cada dato extraído pertenece a su hecho", () => {
+  // Los dos casos del issue (antes en skip).
+  it("con importe de hoy al final, el acuse cita 300 € y no 50 €", () => {
+    const d = decidir(MULTIPLES_IMPORTES[1].evento, REGLAS_BASE);
     expect(d.accion).toContain("300 €");
     expect(d.accion).not.toContain("50 €");
   });
 
-  // activa #4 — con dos fechas, el recordatorio debe anotar el cierre (viernes), no la reunión (lunes).
-  it.skip("con cierre y reunión, se anota el viernes y no el lunes", () => {
-    const { evento } = DOS_FECHAS[1];
-    const d = decidir(evento, REGLAS_BASE);
+  it("con cierre y reunión, se anota el viernes y no el lunes", () => {
+    const d = decidir(DOS_FECHAS[1].evento, REGLAS_BASE);
     expect(d.accion).toContain("viernes");
     expect(d.accion).not.toContain("lunes");
+  });
+
+  // Todas las variantes de importe (orden invertido, mes vs. anterior, voseo) resuelven a
+  // los 300 € de la donación vigente, nunca a los 50 € del aporte viejo.
+  it("el acuse cita la donación vigente en todas las variantes de importe", () => {
+    for (const { evento, descripcion } of MULTIPLES_IMPORTES) {
+      const d = decidir(evento, REGLAS_BASE);
+      expect(d.cls, descripcion).toBe("auto");
+      expect(d.accion, descripcion).toContain("300 €");
+      expect(d.accion, descripcion).not.toContain("50 €");
+    }
+  });
+
+  // Todas las variantes de dos fechas anotan el CIERRE, nunca la fecha de la reunión.
+  it("fecha extrae el cierre y no la reunión en todas las variantes", () => {
+    const cierre: Record<string, string> = {
+      "fecha-cierre-reunion": "viernes",
+      "fecha-reunion-cierre": "viernes",
+      "fecha-dia-mes": "14 de marzo",
+      "fecha-vence-encuentro": "jueves",
+    };
+    const reunion: Record<string, string> = {
+      "fecha-cierre-reunion": "lunes",
+      "fecha-reunion-cierre": "lunes",
+      "fecha-dia-mes": "10 de marzo",
+      "fecha-vence-encuentro": "martes",
+    };
+    for (const { evento, descripcion } of DOS_FECHAS.filter((c) => c.activa === 4)) {
+      expect(EXTRACTORES.fecha(evento.texto), descripcion).toBe(cierre[evento.id]);
+      const d = decidir(evento, REGLAS_BASE);
+      expect(d.accion, descripcion).toContain(cierre[evento.id]);
+      expect(d.accion, descripcion).not.toContain(reunion[evento.id]);
+    }
+  });
+
+  // Ambigüedad real entre hechos: se ELEVA por el camino de si_falta_dato (ante duda, persona).
+  it("ante ambigüedad real entre hechos, eleva a humano en vez de adivinar", () => {
+    for (const { evento, esperado, descripcion } of DATO_AMBIGUO) {
+      const d = decidir(evento, REGLAS_BASE);
+      expect(d.cls, descripcion).toBe(esperado.clasificacion);
+      expect(d.motivos.join(" "), descripcion).toContain("ambiguo");
+    }
+  });
+
+  it("camposAmbiguos marca el conflicto real y queda limpio cuando los marcadores deciden", () => {
+    expect(camposAmbiguos("Doné 300 € y también doné 500 €.")).toContain("importe");
+    expect(camposAmbiguos("Hoy doné 300 €, el mes pasado 50 €.")).toEqual([]);
   });
 });

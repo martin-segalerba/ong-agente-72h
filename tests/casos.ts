@@ -129,6 +129,13 @@ export const MULTIPLES_IMPORTES: CasoRegresion[] = [
     evento: ev("imp-mes", "donante_acuse", "Mi aporte del mes anterior fue de 50 €, el de este mes es de 300 €."),
     esperado: { clasificacion: "auto", porque: "el acuse corresponde a los 300 € de este mes" },
   },
+  // Variante: otros marcadores (voseo), para no sobreajustar a "hoy / el mes pasado".
+  {
+    descripcion: "«recién» (ahora) vs «el año pasado» (viejo)",
+    activa: 4,
+    evento: ev("imp-recien", "donante_acuse", "Recién transferí 300 €; el año pasado había aportado 50 €."),
+    esperado: { clasificacion: "auto", porque: "el acuse cita los 300 € de ahora, no el aporte viejo" },
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -173,6 +180,42 @@ export const DOS_FECHAS: CasoRegresion[] = [
     ),
     esperado: { clasificacion: "auto", porque: "el cierre es el 14 de marzo, no el 10 de la reunión" },
   },
+  // Variante: otros verbos de cierre («vence») y de evento («encuentro»), sin sobreajustar.
+  {
+    descripcion: "«vence» el jueves vs «encuentro» el martes",
+    activa: 4,
+    evento: ev(
+      "fecha-vence-encuentro",
+      "plazo_recordatorio",
+      "El plazo de la beca REF-77 vence el jueves; el encuentro del equipo es el martes.",
+    ),
+    esperado: { clasificacion: "auto", porque: "vence = cierre (jueves), no el martes del encuentro" },
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CASO 5 · Ambigüedad real — ante la duda, se ELEVA (no se adivina).
+//   Cuando hay más de un hecho candidato y los marcadores no alcanzan a decidir a
+//   cuál pertenece el dato, el motor NO elige uno al azar: lo manda a una persona por
+//   el camino de `si_falta_dato`. Lo arregla #4 (filosofía: ante duda, persona).
+// ─────────────────────────────────────────────────────────────────────────────
+export const DATO_AMBIGUO: CasoRegresion[] = [
+  {
+    descripcion: "dos donaciones sin marcador que las distinga → elevar",
+    activa: 4,
+    evento: ev("imp-ambiguo", "donante_acuse", "Doné 300 € y también doné 500 €."),
+    esperado: { clasificacion: "humano", porque: "no se puede saber cuál acusar: lo mira una persona" },
+  },
+  {
+    descripcion: "dos cierres distintos → elevar en vez de adivinar",
+    activa: 4,
+    evento: ev(
+      "fecha-ambigua",
+      "plazo_recordatorio",
+      "La convocatoria BECA-2026 vence el viernes y el plazo también vence el lunes.",
+    ),
+    esperado: { clasificacion: "humano", porque: "hay dos cierres y no se puede decidir cuál es" },
+  },
 ];
 
 /** Todos los casos juntos, por si un issue quiere recorrerlos en bloque. */
@@ -181,6 +224,7 @@ export const CASOS = {
   donacionConDenuncia: DONACION_CON_DENUNCIA,
   multiplesImportes: MULTIPLES_IMPORTES,
   dosFechas: DOS_FECHAS,
+  datoAmbiguo: DATO_AMBIGUO,
 };
 
 /**
