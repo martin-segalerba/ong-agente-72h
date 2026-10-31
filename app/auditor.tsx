@@ -7,6 +7,7 @@ import { Logs } from "@/components/logs";
 import { Mejoras } from "@/components/mejoras";
 import { Setup } from "@/components/setup";
 import { type HistorialCliente, hoy, preguntasDe, propuestasDe, useEstadoLocal, versionActiva, versionesDe } from "@/lib/cliente";
+import { validarTransicion } from "@/lib/transicion";
 import type { Propuesta, Revision } from "@/lib/types";
 
 type Tab = "home" | "setup" | "logs" | "mejoras";
@@ -41,8 +42,8 @@ export function Auditor({ historial }: { historial: HistorialCliente }) {
 
   const onDecidir = (p: Propuesta, aprobar: boolean) =>
     actualizar((s) => {
-      // Una propuesta armada sobre otra versión no se puede aplicar: sus métricas no comparan contra las reglas activas.
-      if (aprobar && p.baseVersion !== versionActiva(historial, s).v) return s;
+      // La MISMA barrera que el simulador: la UI no puede aprobar algo que `decisionSimulada` rechazaría.
+      if (aprobar && !validarTransicion(p, { versionActiva: versionActiva(historial, s).v }).aprobar) return s;
       const decisiones = {
         ...s.decisiones,
         [p.id]: aprobar
