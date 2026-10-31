@@ -4,7 +4,7 @@
  * comentario `// activa #N`: cuando el fix aterrice, se cambia `.skip` por el test normal.
  */
 import { describe, expect, it } from "vitest";
-import { camposAmbiguos, decidir, edades, EXTRACTORES, normalizar } from "../lib/engine";
+import { camposAmbiguos, decidir, edades, EXTRACTORES, normalizar, validarReglas } from "../lib/engine";
 import { SALVAGUARDAS_INMUTABLES } from "../lib/salvaguardas-inmutables";
 import type { Evento } from "../lib/types";
 import { DATO_AMBIGUO, DONACION_CON_DENUNCIA, DOS_FECHAS, EDAD, MULTIPLES_IMPORTES, REGLAS_BASE, REGLAS_CON_MENORES } from "./casos";
@@ -217,5 +217,81 @@ describe("#4 · cada dato extraído pertenece a su hecho", () => {
   it("camposAmbiguos marca el conflicto real y queda limpio cuando los marcadores deciden", () => {
     expect(camposAmbiguos("Doné 300 € y también doné 500 €.")).toContain("importe");
     expect(camposAmbiguos("Hoy doné 300 €, el mes pasado 50 €.")).toEqual([]);
+  });
+});
+
+describe("#5 · validarReglas no deja pasar acciones infundadas ni borrar salvaguardas", () => {
+  // Una regla auto válida que cita el importe por `{campo}` (no inventa nada). Base para
+  // mutarla en cada caso negativo sin arrastrar otros errores de forma.
+  const reglaOk = {
+    id: "R-cert",
+    sop: "Acuse de donación citando el importe extraído del texto.",
+    cuando: { tipos: ["donante_acuse"], contiene_alguno: [], no_contiene: [], importe_min: null, importe_max: null },
+    entonces: { clasificacion: "auto" as const, accion: "Enviado el acuse por la donación de {importe}." },
+    requiere: ["importe"],
+    si_falta_dato: "humano" as const,
+  };
+  const conReglas = (reglas: typeof reglaOk[]) => ({ ...REGLAS_BASE, salvaguardas: [], reglas });
+
+  it("las reglas base del repo y las de menores son válidas (sin falsos positivos)", () => {
+    expect(validarReglas(REGLAS_BASE)).toEqual([]);
+    expect(validarReglas(REGLAS_CON_MENORES)).toEqual([]);
+  });
+
+  it("una regla con cifra inventada + 'certificado emitido' literal es rechazada", () => {
+    const reglas = conReglas([
+      { ...reglaOk, entonces: { clasificacion: "auto" as const, accion: "Certificado emitido por la donación de 500 €." } },
+    ]);
+    const errores = validarReglas(reglas);
+    expect(errores.some((e) => e.includes("dato inventado"))).toBe(true);
+    expect(errores.join(" ")).toContain("500 €");
+  });
+
+  it("también rechaza referencias y fechas literales fuera de un {campo}", () => {
+    const ref = conReglas([{ ...reglaOk, entonces: { clasificacion: "auto" as const, accion: "Anotada la convocatoria BECA-2026 para todos." } }]);
+    const fecha = conReglas([{ ...reglaOk, entonces: { clasificacion: "auto" as const, accion: "Programado el cierre para el 14 de marzo sin falta." } }]);
+    expect(validarReglas(ref).some((e) => e.includes("dato inventado"))).toBe(true);
+    expect(validarReglas(fecha).some((e) => e.includes("dato inventado"))).toBe(true);
+  });
+
+  it("una regla válida con {importe} no dispara 'dato inventado'", () => {
+    expect(validarReglas(conReglas([reglaOk])).some((e) => e.includes("dato inventado"))).toBe(false);
+  });
+
+  it("números genéricos sin moneda ('72 h', '2 voluntarios') no se bloquean", () => {
+    const reglas = conReglas([
+      { ...reglaOk, entonces: { clasificacion: "auto" as const, accion: "Dados de alta 2 voluntarios y agendado un aviso 72 h antes." } },
+    ]);
+    expect(validarReglas(reglas).some((e) => e.includes("dato inventado"))).toBe(false);
+  });
+
+  it("una propuesta que borra/rebaja una salvaguarda inmutable es rechazada", () => {
+    // Reusa el id de una inmutable (INM-acoso) pero la vacía y la baja a auto para fingir
+    // cobertura. El motor igual la aplica desde código; el validador corta el intento.
+    const reglas = {
+      ...REGLAS_BASE,
+      reglas: [reglaOk],
+      salvaguardas: [
+        { id: "INM-acoso", sop: "Neutralizada a propósito.", palabras: [], palabras_exactas: [], edad_menor_de: null, nivel_minimo: "auto" as const },
+      ],
+    };
+    const errores = validarReglas(reglas);
+    expect(errores.some((e) => e.includes("INM-acoso") && (e.includes("rebaja") || e.includes("borra disparadores")))).toBe(true);
+  });
+
+  it("rebajar el umbral de edad de la salvaguarda inmutable de menores es rechazado", () => {
+    const reglas = {
+      ...REGLAS_BASE,
+      reglas: [reglaOk],
+      salvaguardas: [
+        { id: "INM-menores", sop: "Umbral rebajado.", palabras: ["menor de edad", "soy menor", "es menor de", "somos menores"], palabras_exactas: [], edad_menor_de: 13, nivel_minimo: "humano" as const },
+      ],
+    };
+    expect(validarReglas(reglas).some((e) => e.includes("INM-menores") && e.includes("edad"))).toBe(true);
+  });
+
+  it("un por_defecto que resuelve en auto es rechazado", () => {
+    const reglas = { ...REGLAS_BASE, reglas: [reglaOk], salvaguardas: [], por_defecto: { clasificacion: "auto" as const, accion: "Despachado en automático sin intervención." } };
+    expect(validarReglas(reglas).some((e) => e.includes("por_defecto") && e.includes("automático"))).toBe(true);
   });
 });

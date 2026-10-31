@@ -305,6 +305,25 @@ export function decidir(ev: Evento, reglas: Reglas): Decision {
   return { cls, regla, accion, motivos };
 }
 
+/**
+ * Datos INVENTADOS dentro de una acción: importes con moneda (300 €, $300, 300 EUR),
+ * códigos de referencia (BECA-2026) o fechas (14 de marzo, 12/5, viernes) que aparecen
+ * LITERALES en la plantilla en vez de entrar por un `{campo}` (que un extractor llena
+ * desde el texto del evento). Primero se borran los `{campo}` y recién después se escanea
+ * lo que queda: así `{importe}` o `{fecha}` no cuentan como inventados. Los números
+ * genéricos sin moneda («72 h», «2 voluntarios») no disparan: ni RE_IMPORTE (exige moneda)
+ * ni RE_REF (exige letras) ni RE_FECHA (exige «de <mes>», «d/m» o nombre de día) los matchean.
+ */
+function datosInventados(accion: string): string[] {
+  const literal = accion.replace(/\{\w+\}/g, " ");
+  const hits: string[] = [];
+  for (const m of literal.matchAll(RE_IMPORTE)) hits.push(m[0].trim());
+  const ref = literal.match(RE_REF);
+  if (ref) hits.push(ref[0]);
+  for (const m of normalizar(literal).matchAll(RE_FECHA)) hits.push(m[0].trim());
+  return hits;
+}
+
 /** Errores de forma que el schema de salida no puede expresar. Vacío = válido. */
 export function validarReglas(r: Reglas): string[] {
   const errores: string[] = [];
@@ -322,6 +341,10 @@ export function validarReglas(r: Reglas): string[] {
     if (/\b(preguntar|consultar con|esperar|pendiente de|revisar con)\b/i.test(x.entonces.accion) && x.entonces.clasificacion === "auto") {
       errores.push(`${x.id}: acción auto que delega`);
     }
+    // Procedencia: una acción no puede traer importes/referencias/fechas inventados; esos
+    // datos solo pueden entrar por un `{campo}` que los extraiga del texto del evento.
+    const inventados = datosInventados(x.entonces.accion);
+    if (inventados.length) errores.push(`${x.id}: dato inventado en la acción (${inventados.join(", ")}); usá un {campo}`);
   }
   for (const x of r.reglas) {
     if (x.si_falta_dato === "auto") errores.push(`${x.id}: si falta un dato no puede resolverse en automático`);
@@ -329,6 +352,27 @@ export function validarReglas(r: Reglas): string[] {
   for (const s of r.salvaguardas) {
     if (s.nivel_minimo === "auto") errores.push(`${s.id}: una salvaguarda no puede bajar a auto`);
     if (!s.palabras.length && !s.palabras_exactas.length && s.edad_menor_de === null) errores.push(`${s.id}: salvaguarda sin disparador`);
+  }
+  // El fallback no puede resolver en automático (el default inseguro): ante nada que
+  // coincida, lo revisa una persona, no se despacha solo.
+  if (r.por_defecto.clasificacion === "auto") errores.push("por_defecto: el fallback no puede resolver en automático");
+  const invDefecto = datosInventados(r.por_defecto.accion);
+  if (invDefecto.length) errores.push(`por_defecto: dato inventado en la acción (${invDefecto.join(", ")}); usá un {campo}`);
+  // Piso inmutable (#3): una salvaguarda de rules.json que reusa el id de una inmutable no
+  // puede rebajarla ni vaciarle los disparadores para fingir que ya está cubierta. El motor
+  // igual la aplica desde código, pero rechazamos acá el intento de borrarla/debilitarla.
+  const inmById = new Map(SALVAGUARDAS_INMUTABLES.map((s) => [s.id, s]));
+  for (const s of r.salvaguardas) {
+    const inm = inmById.get(s.id);
+    if (!inm) continue;
+    if (NIVEL[s.nivel_minimo] < NIVEL[inm.nivelMinimo]) {
+      errores.push(`${s.id}: rebaja la salvaguarda inmutable (${inm.nivelMinimo} → ${s.nivel_minimo})`);
+    }
+    const faltan = inm.palabras.filter((p) => !s.palabras.includes(p));
+    if (faltan.length) errores.push(`${s.id}: borra disparadores de la salvaguarda inmutable (${faltan.join(", ")})`);
+    if (inm.edadMenorDe !== null && (s.edad_menor_de === null || s.edad_menor_de < inm.edadMenorDe)) {
+      errores.push(`${s.id}: rebaja el umbral de edad de la salvaguarda inmutable (${inm.edadMenorDe})`);
+    }
   }
   return errores;
 }
