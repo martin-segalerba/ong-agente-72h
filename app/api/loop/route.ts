@@ -50,8 +50,13 @@ const Entrada = z.object({
 });
 
 function estado() {
-  const habilitado = process.env.LOOP_EN_VIVO === "1" && !!process.env.ANTHROPIC_API_KEY && !!process.env.TYPESAFE_API_KEY;
-  return { habilitado, requiereClave: !!process.env.LOOP_CLAVE };
+  // En vivo exige SIEMPRE una clave: sin `LOOP_CLAVE` configurada, el endpoint no se habilita aunque
+  // estén `LOOP_EN_VIVO` y las claves de API. Un loop que gasta dinero no puede quedar abierto.
+  const tieneClave = !!process.env.LOOP_CLAVE;
+  const habilitado = process.env.LOOP_EN_VIVO === "1" && !!process.env.ANTHROPIC_API_KEY && !!process.env.TYPESAFE_API_KEY && tieneClave;
+  // TODO(#seguimiento): límite de trabajos en vuelo y tope de gasto por ventana (rate/budget). Fuera
+  // del alcance de la demo; abrir un issue de seguimiento antes de exponer el loop en vivo de verdad.
+  return { habilitado, requiereClave: tieneClave };
 }
 
 export function GET() {

@@ -23,19 +23,39 @@ export interface Fila {
 export const NOUL_SENAL = "requiere_persona";
 
 /**
+ * Las Noul que un `auto` necesita sí o sí para poder darse por seguro. Se declara acá, en código, y
+ * NO se deriva de lo que vino en la respuesta del auditor: si la pregunta se borra o se renombra, el
+ * evento tiene que elevarse a revisión en vez de colarse como "sin riesgo".
+ */
+export const NOULS_OBLIGATORIOS: readonly string[] = [NOUL_SENAL];
+
+/** ¿Al evento `auto` le falta alguna señal que el código exige para considerarlo seguro? */
+function faltaSenalObligatoria(a: Auditoria): boolean {
+  return NOULS_OBLIGATORIOS.some((k) => a.nouls?.[k] == null);
+}
+
+/**
  * En `auto` el umbral se aplica a la probabilidad de `requiere_persona`; en `aprobar` y `humano`,
  * que una persona ya ve enteros, a la confianza del veredicto de Jev.
  */
 export const UMBRALES_INICIALES: Umbrales = { auto: 0.6, aprobar: 0.7, humano: 0.6 };
 
 export function senalFuerte(d: Decision, a: Auditoria, u: Umbrales): boolean {
-  if (d.cls === "auto") return (a.nouls?.[NOUL_SENAL] ?? 0) >= u.auto;
+  if (d.cls === "auto") {
+    // La ausencia de una señal obligatoria no es "sin riesgo": es "no se puede afirmar que sea
+    // seguro". Se eleva a revisión por código, sin depender de que el auditor haya respondido.
+    if (faltaSenalObligatoria(a)) return true;
+    return (a.nouls?.[NOUL_SENAL] ?? 0) >= u.auto;
+  }
   return a.v !== "correcta" && a.conf >= u[d.cls];
 }
 
-/** El número contra el que se compara el umbral de esa clase. */
+/**
+ * El número contra el que se compara el umbral de esa clase. `null` = no se midió (señal ausente o
+ * veredicto correcto); nunca un `0` que se confunda con un puntaje bajo real.
+ */
 export function puntajeSenal(d: Decision, a: Auditoria): number | null {
-  if (d.cls === "auto") return a.nouls?.[NOUL_SENAL] ?? null;
+  if (d.cls === "auto") return faltaSenalObligatoria(a) ? null : a.nouls[NOUL_SENAL];
   return a.v !== "correcta" ? a.conf : null;
 }
 
@@ -47,19 +67,43 @@ export function esExplicita(r: Revision | null): r is Revision {
   return !!r && r.por !== "implicito";
 }
 
+/**
+ * Normaliza el texto de una acción para comparar CONTENIDO, no forma: ignora mayúsculas, espacios
+ * repetidos y la puntuación de borde. Dos acciones que solo difieren en eso son la misma acción.
+ */
+export function accionNormalizada(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[.;:,!¡¿?…\s]+$/g, "");
+}
+
+/** ¿El contenido de la acción cambió de verdad (no solo mayúsculas/espacios/puntuación de borde)? */
+export function accionCambia(a: string, b: string): boolean {
+  return accionNormalizada(a) !== accionNormalizada(b);
+}
+
 /** ¿La decisión `d` hace lo que pidió la persona que revisó el evento? */
 export function reproduce(r: Revision, d: Decision): boolean {
   if (r.tipo === "revertido") return d.cls === r.objetivo;
   if (r.tipo === "rechazado") {
     if (d.cls !== r.clsOriginal) return NIVEL[d.cls] > NIVEL[r.clsOriginal];
-    return d.accion !== r.accionOriginal;
+    // Misma clase: solo cuenta como corrección si el contenido de la acción cambió de verdad. Un
+    // retoque de formato (mayúsculas, espacios) no resuelve el rechazo.
+    return accionCambia(d.accion, r.accionOriginal);
   }
   return false;
 }
 
-/** Una decisión que una persona confirmó de verdad y que la regla nueva cambia. Las implícitas no cuentan. */
+/**
+ * Una decisión que una persona confirmó de verdad y que la regla nueva cambia. Cuenta como regresión
+ * tanto si cambia la CLASE como si conserva la clase pero cambia el CONTENIDO de la acción: la
+ * persona confirmó esa acción, no solo su clasificación. Las implícitas no cuentan.
+ */
 export function rompeConfirmada(r: Revision, d: Decision): boolean {
-  return esExplicita(r) && !esCorrectiva(r) && d.cls !== r.clsOriginal;
+  if (!esExplicita(r) || esCorrectiva(r)) return false;
+  return d.cls !== r.clsOriginal || accionCambia(d.accion, r.accionOriginal);
 }
 
 export function aciertaVerdad(d: Decision, v: Verdad): boolean {
